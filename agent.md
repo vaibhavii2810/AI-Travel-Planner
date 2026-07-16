@@ -15,10 +15,12 @@ This document captures the architectural analysis, design decisions, and impleme
     *   Test: `MemorySaver`
     *   Dev: `SqliteSaver`
     *   Prod: `AsyncPostgresSaver`
+    *   *Note: LangGraph version pinned (`langgraph~=1.2.9`) to guarantee API compatibility.*
     The `setup()` call runs in the FastAPI lifespan to ensure tables exist before any request.
 
 4.  **Background Execution for Long-Running Tasks**
     LLM + API calls can take 30–60s. The graph runs in a `BackgroundTask` so `POST /plan` returns immediately. Clients poll `GET /plan/{id}` to read state. A thin `PlanRepository` metadata store handles instant responses before the graph even starts.
+    *   *Note: Post-stream checkpoint verification runs `aget_state(config)` immediately after the `astream()` finishes to verify whether the workflow has correctly entered the HITL pause (`hitl_review_node`) or reached final completion.*
 
 ## High-Risk Areas and Bypass Strategies
 
@@ -29,13 +31,14 @@ This document captures the architectural analysis, design decisions, and impleme
     *   **Bypass:** Use an ENV-gated checkpointer factory. Run `await saver.setup()` during the FastAPI `lifespan` context manager. This ensures tables exist before requests arrive and connection pools are closed gracefully.
 
 3.  **Risk: Background Execution and State Consistency**
-    *   **Bypass:** Write a metadata record (`PlanMeta`) to a lightweight store (`PlanRepository`) *before* launching the background graph task. `GET /plan/{id}` reads this metadata first, ensuring an instant response even if the LangGraph checkpoint hasn't been created yet. Update the `status` field in `TravelPlanState` at the start of every node.
+    *   **Bypass:** Write a metadata record (`PlanMeta`) to a lightweight store (`PlanRepository`) *before* launching the background graph task. `GET /plan/{id}` reads this metadata first, ensuring an instant response even if the LangGraph checkpoint hasn't been created yet. Update the `status` field in `TravelPlanState` at the start of every node. 
+    *   *Correction implemented:* Nodes write `STATUS_RESEARCHING`, `STATUS_PLANNING`, or `STATUS_REVISING` explicitly inside the graph state which is streamed and synchronized back to the repository.
 
 4.  **Risk: Infinite Revision Loop**
     *   **Bypass:** Implement a `MAX_REVISIONS` guard in the conditional routing edge (`route_after_review`), *before* dispatching to any agent. Use a dedicated `max_revisions_node` to cleanly terminate the graph if the limit is reached, rather than throwing an unhandled exception.
 
 5.  **Risk: Structured LLM Output Schema Instability**
-    *   **Bypass:** Design forgiving schemas (`extra="ignore"`, coersion validators). Use `include_raw=True` with `with_structured_output` and implement a retry loop that feeds parsing errors back to the LLM for self-correction.
+    *   **Bypass:** Design forgiving schemas (`extra="ignore"`, coersion validators). Use `include_raw=True` with `with_structured_output` and implement a retry loop that feeds parsing errors back to the LLM for self-correction. All UTC timestamp representations are strictly timezone-aware (`datetime.now(timezone.utc)`) to avoid Python 3.12+ deprecation issues.
 
 ## Graph Topology
 
@@ -82,7 +85,12 @@ ai-travel-planner/
 │   ├── tools/               # External tools
 │   ├── core/                # Config, Exceptions, Checkpointer
 │   └── prompts/             # System and Human prompts
+├── scripts/
+│   └── smoke_test.py        # End-to-end local workflow validator
 ├── tests/
 │   ├── unit/
 │   └── integration/
+├── pyproject.toml           # Pytest configuration
+├── requirements.txt         # pinned requirements
 ```
+
