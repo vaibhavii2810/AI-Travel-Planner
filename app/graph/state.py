@@ -10,7 +10,7 @@ Design notes:
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 from typing_extensions import TypedDict
 
@@ -56,7 +56,7 @@ STATUS_MAX_REVISIONS = "max_revisions_exceeded"
 
 def initial_state(plan_id: str, travel_request: TravelRequest) -> TravelPlanState:
     """Build the initial state dict for a new graph run."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     return TravelPlanState(
         plan_id=plan_id,
         travel_request=travel_request,

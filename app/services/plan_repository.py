@@ -11,7 +11,7 @@ In production: replace _store with an async DB table (plans: id, status, created
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 logger = logging.getLogger("app.services.plan_repository")
@@ -22,7 +22,7 @@ class PlanMeta:
     __slots__ = ("plan_id", "status", "created_at", "updated_at", "error_message")
 
     def __init__(self, plan_id: str, status: str):
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         self.plan_id = plan_id
         self.status = status
         self.created_at = now
@@ -31,7 +31,7 @@ class PlanMeta:
 
     def update(self, status: str, error_message: Optional[str] = None) -> None:
         self.status = status
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
         if error_message is not None:
             self.error_message = error_message
 

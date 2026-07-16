@@ -5,7 +5,7 @@ No LLM call — pure state transformation.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.logging import log_node_entry, log_node_exit
 from app.graph.state import STATUS_FINALIZED, TravelPlanState
@@ -31,7 +31,7 @@ def finalize_node(state: TravelPlanState) -> dict:
         return {
             "status": "error",
             "error_message": "Cannot finalize: draft itinerary is missing.",
-            "updated_at": datetime.utcnow(),
+            "updated_at": datetime.now(timezone.utc),
         }
 
     log_node_exit(logger, "finalize_node", plan_id, STATUS_FINALIZED)
@@ -41,5 +41,5 @@ def finalize_node(state: TravelPlanState) -> dict:
     return {
         "final_itinerary": draft,
         "status": STATUS_FINALIZED,
-        "updated_at": datetime.utcnow(),
+        "updated_at": datetime.now(timezone.utc),
     }

@@ -1,5 +1,5 @@
 fastapi[all]>=0.111.0
-langgraph>=0.0.60
+langgraph~=1.2.9
 langchain-openai>=0.1.8
 langchain-core>=0.2.5
 pydantic-settings>=2.2.1

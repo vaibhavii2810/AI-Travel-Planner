@@ -5,11 +5,11 @@ Increments revision_count here (single source of truth for Risk 4 guard).
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.agents.planner_agent import invoke_planner_agent
 from app.core.logging import log_node_entry, log_node_exit
-from app.graph.state import STATUS_AWAITING_REVIEW, TravelPlanState
+from app.graph.state import STATUS_AWAITING_REVIEW, STATUS_PLANNING, STATUS_REVISING, TravelPlanState
 from app.models.domain import ResearchOutput, TravelRequest
 
 logger = logging.getLogger("app.graph.nodes.planner_node")
@@ -36,9 +36,12 @@ async def planner_node(state: TravelPlanState) -> dict:
     """
     plan_id = state.get("plan_id", "unknown")
     current_revision = state.get("revision_count", 0)
+    is_revision = current_revision > 0
+    # Correctly distinguish first pass (planning) vs subsequent passes (revising)
+    active_status = STATUS_REVISING if is_revision else STATUS_PLANNING
     log_node_entry(
         logger, "planner_node", plan_id,
-        {"revision": current_revision, "status": STATUS_AWAITING_REVIEW}
+        {"revision": current_revision, "status": active_status}
     )
 
     travel_request: TravelRequest = state["travel_request"]
@@ -62,7 +65,7 @@ async def planner_node(state: TravelPlanState) -> dict:
         "draft_itinerary": draft_itinerary,
         "revision_count": new_revision_count,
         "status": STATUS_AWAITING_REVIEW,
-        "updated_at": datetime.utcnow(),
+        "updated_at": datetime.now(timezone.utc),
         # Clear feedback/modification once processed
         "rejection_feedback": None,
         "modification_request": None,

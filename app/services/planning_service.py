@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from langgraph.types import Command
@@ -87,7 +87,7 @@ class PlanningService:
                 f"Your travel plan for {travel_request.destination} is being created. "
                 f"Poll GET /api/v1/plan/{plan_id} for updates."
             ),
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
 
     async def get_plan_status(self, plan_id: str) -> PlanStatusResponse:
@@ -234,7 +234,19 @@ class PlanningService:
                         new_status = node_output["status"]
                         await self._repo.update(plan_id, status=new_status)
                         logger.debug(f"_run_graph | plan_id={plan_id} | node={node_name} | status→{new_status}")
-            logger.info(f"_run_graph | plan_id={plan_id} | PAUSED at interrupt or COMPLETED")
+
+            # Post-stream: determine if we paused at HITL or truly completed
+            # aget_state() inspects the checkpoint to see what nodes are pending
+            try:
+                snapshot = await self._graph.aget_state(config)
+                if snapshot and snapshot.next == ("hitl_review_node",):
+                    # Genuine interrupt pause — status already set to awaiting_review by node
+                    await self._repo.update(plan_id, status=STATUS_AWAITING_REVIEW)
+                    logger.info(f"_run_graph | plan_id={plan_id} | PAUSED at hitl_review_node")
+                else:
+                    logger.info(f"_run_graph | plan_id={plan_id} | COMPLETED | next={getattr(snapshot, 'next', None)}")
+            except Exception as snap_exc:
+                logger.warning(f"_run_graph | plan_id={plan_id} | Could not inspect post-stream snapshot: {snap_exc}")
 
         except Exception as exc:
             logger.exception(f"_run_graph | plan_id={plan_id} | FAILED: {exc}")

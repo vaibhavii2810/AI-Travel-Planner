@@ -4,7 +4,7 @@ All LLM-generated objects are defined here with LLM-tolerant validators.
 """
 from __future__ import annotations
 
-from datetime import date as dt_date, datetime
+from datetime import date as dt_date, datetime, timezone
 from typing import Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -100,7 +100,7 @@ class ResearchOutput(_DomainModel):
     seasonal_notes: str = Field(default="", max_length=2000)
     general_destination_info: str = Field(default="", max_length=3000)
     research_sources: list[str] = Field(default_factory=list)
-    researched_at: datetime = Field(default_factory=datetime.utcnow)
+    researched_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # ── Itinerary / Planner Output ─────────────────────────────────────────────────
@@ -182,7 +182,7 @@ class DraftItinerary(_DomainModel):
     budget_allocation: BudgetAllocation = Field(default_factory=BudgetAllocation)
     overall_tips: list[str] = Field(default_factory=list)
     packing_suggestions: list[str] = Field(default_factory=list)
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # ── Review ─────────────────────────────────────────────────────────────────────

@@ -1,0 +1,14 @@
+[tool.pytest.ini_options]
+# asyncio_mode=auto means ALL async test functions are treated as async
+# without needing @pytest.mark.asyncio on each one
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+# Test discovery
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Show extra test summary for failures, errors, and warnings
+addopts = "-v --tb=short -ra"

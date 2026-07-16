@@ -4,11 +4,11 @@ Research Node — invokes the Research Agent and updates graph state.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.agents.research_agent import invoke_research_agent
 from app.core.logging import log_node_entry, log_node_exit
-from app.graph.state import STATUS_RESEARCHING, TravelPlanState
+from app.graph.state import STATUS_RESEARCHING, STATUS_REVISING, TravelPlanState
 from app.models.domain import TravelRequest
 
 logger = logging.getLogger("app.graph.nodes.research_node")
@@ -29,10 +29,12 @@ async def research_node(state: TravelPlanState) -> dict:
         - updated_at
     """
     plan_id = state.get("plan_id", "unknown")
-    log_node_entry(logger, "research_node", plan_id, {"status": STATUS_RESEARCHING})
-
     travel_request: TravelRequest = state["travel_request"]
     rejection_feedback: str | None = state.get("rejection_feedback")
+
+    # Mark as revising (not fresh research) when re-running after rejection
+    active_status = STATUS_REVISING if rejection_feedback else STATUS_RESEARCHING
+    log_node_entry(logger, "research_node", plan_id, {"status": active_status})
 
     research_output = await invoke_research_agent(
         destination=travel_request.destination,
@@ -47,12 +49,12 @@ async def research_node(state: TravelPlanState) -> dict:
         rejection_feedback=rejection_feedback,
     )
 
-    log_node_exit(logger, "research_node", plan_id, STATUS_RESEARCHING)
+    log_node_exit(logger, "research_node", plan_id, active_status)
 
     return {
         "research_output": research_output,
-        "status": STATUS_RESEARCHING,
-        "updated_at": datetime.utcnow(),
+        "status": active_status,
+        "updated_at": datetime.now(timezone.utc),
         # Clear rejection feedback once processed
         "rejection_feedback": None,
     }

@@ -15,7 +15,7 @@ Canonical pattern:
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from langgraph.types import interrupt
 
@@ -76,5 +76,5 @@ def hitl_review_node(state: TravelPlanState) -> dict:
         "rejection_feedback": rejection_feedback,
         "modification_request": modification_request,
         "status": STATUS_AWAITING_REVIEW,  # routing.py will set the next status
-        "updated_at": datetime.utcnow(),
+        "updated_at": datetime.now(timezone.utc),
     }

@@ -5,7 +5,7 @@ No LLM call. Routes to END cleanly (Risk 4 bypass).
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.config import get_settings
 from app.core.logging import log_node_entry, log_node_exit
@@ -39,5 +39,5 @@ def max_revisions_node(state: TravelPlanState) -> dict:
     return {
         "status": STATUS_MAX_REVISIONS,
         "error_message": error_message,
-        "updated_at": datetime.utcnow(),
+        "updated_at": datetime.now(timezone.utc),
     }
