@@ -45,9 +45,24 @@ A multi-agent travel planning system built with LangGraph and FastAPI, featuring
 *   `POST /api/v1/plan/{plan_id}/review`: Submit a review decision (`approve`, `reject`, or `modify`).
 *   `GET /api/v1/plan/{plan_id}/final`: View the finalized itinerary (only available after approval).
 
-## Testing
+## Testing & Validation
 
-Run unit and integration tests (including the HITL genuineness verification test):
+### 1. Run Automated Test Suite
+Unit and integration tests (including the HITL genuineness verification test) run asynchronously with `pytest`:
 ```bash
-pytest tests/
+pytest
 ```
+*(Configuration is defined in `pyproject.toml` with `asyncio_mode = "auto"`).*
+
+### 2. Run End-to-End Smoke Test
+To validate the entire path (`POST /plan` → poll → `POST /review` → `GET /final`) with real API calls:
+1. Ensure your `.env` contains valid keys.
+2. Start the FastAPI server:
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+3. Run the smoke test script:
+   ```bash
+   python scripts/smoke_test.py
+   ```
+
