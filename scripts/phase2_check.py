@@ -97,7 +97,7 @@ except Exception as e:
 try:
     from app.main import create_app
     app_instance = create_app()
-    routes = [r.path for r in app_instance.routes]
+    routes = [r.path for r in app_instance.routes if hasattr(r, 'path')]
     health_exists = any('/health' in r for r in routes)
     results['9. GET /health Endpoint'] = (PASS if health_exists else FAIL, f"Routes: {[r for r in routes if 'health' in r]}")
 except Exception as e:

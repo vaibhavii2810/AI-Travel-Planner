@@ -33,6 +33,7 @@ For the given destination and travel dates, you MUST research and include:
 
 ## Important
 - DO NOT invent attractions or information
+- You must NOT invent attraction prices, opening hours, safety alerts, weather forecasts, or travel restrictions unless they are supported by your tool data.
 - If a search returns no useful results, try a more specific query
 - Prioritize recent information (2024/2025)
 """

@@ -8,7 +8,7 @@ from datetime import date as dt_date, datetime, timezone
 from enum import Enum
 from typing import Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 # ── Base config for all domain models ────────────────────────────────────────
@@ -33,6 +33,23 @@ class TravelRequest(_DomainModel):
     budget_currency: str = Field(default="USD", max_length=3)
     interests: list[str] = Field(..., min_length=1)
     num_travelers: int = Field(..., ge=1, le=50)
+
+    @field_validator("interests", mode="before")
+    @classmethod
+    def normalize_interests(cls, v: list[str]) -> list[str]:
+        if not isinstance(v, list):
+            return v
+        normalized = []
+        seen = set()
+        for item in v:
+            if isinstance(item, str):
+                cleaned = item.strip().lower()
+                if cleaned and cleaned not in seen:
+                    normalized.append(cleaned)
+                    seen.add(cleaned)
+            else:
+                normalized.append(item)
+        return normalized
 
     @field_validator("end_date")
     @classmethod
@@ -119,9 +136,12 @@ class Activity(_DomainModel):
     @classmethod
     def coerce_numeric(cls, v) -> float:
         try:
-            return float(v)
+            val = float(v)
         except (TypeError, ValueError):
             return 0.0
+        if val < 0:
+            raise ValueError("Cost and duration cannot be negative")
+        return val
 
 
 class DailyPlan(_DomainModel):
@@ -133,7 +153,8 @@ class DailyPlan(_DomainModel):
     evening: list[Activity] = Field(default_factory=list)
     accommodation: str = Field(default="", max_length=300)
     estimated_daily_cost_per_person: Union[float, int, str] = Field(default=0.0)
-    travel_notes: str = Field(default="", max_length=500)
+    # Prompt 5: "practical notes" — alias for backward compat with travel_notes
+    practical_notes: str = Field(default="", max_length=500, alias="travel_notes")
 
     @field_validator("day_number", mode="before")
     @classmethod
@@ -147,9 +168,12 @@ class DailyPlan(_DomainModel):
     @classmethod
     def coerce_cost(cls, v) -> float:
         try:
-            return float(v)
+            val = float(v)
         except (TypeError, ValueError):
             return 0.0
+        if val < 0:
+            raise ValueError("Daily cost cannot be negative")
+        return val
 
 
 class BudgetAllocation(_DomainModel):
@@ -197,3 +221,101 @@ class ReviewAction(str, Enum):
     APPROVE = "approve"
     REJECT = "reject"
     MODIFY = "modify"
+
+
+# ── Structured Output Models ───────────────────────────────────────────────────
+
+class ResearchResult(_DomainModel):
+    destination_overview: str = Field(..., description="Overview of the destination")
+    attractions: list[Attraction] = Field(default_factory=list, description="Top attractions")
+    weather: WeatherSummary = Field(..., description="Weather summary and conditions")
+    safety_information: list[str] = Field(default_factory=list, description="Safety considerations and advisories")
+    local_tips: list[str] = Field(default_factory=list, description="Local insider tips and recommendations")
+    seasonal_considerations: str = Field(default="", description="Seasonal travel notes and recommendations")
+    sources: list[str] = Field(default_factory=list, description="Sources used for research")
+
+
+class Itinerary(_DomainModel):
+    destination: str = Field(..., description="Destination of the trip")
+    dates: str = Field(..., description="Dates of the travel")
+    travelers: int = Field(default=1, ge=1, description="Number of travelers")
+    budget_summary: BudgetAllocation = Field(..., description="Summary of the allocated budget")
+    day_by_day_plans: list[DailyPlan] = Field(default_factory=list, description="Day-by-day travel plan")
+    activities: list[Activity] = Field(default_factory=list, description="List of all scheduled activities")
+    estimated_costs: float = Field(default=0.0, description="Estimated total cost")
+    notes: list[str] = Field(default_factory=list, description="Notes and general tips")
+    total_estimated_cost: float = Field(default=0.0, description="Total estimated cost of the trip")
+    assumptions: list[str] = Field(default_factory=list, description="Assumptions made by the planner")
+    # budget_comparison is validated last — we use it as a hook to enforce budget guardrails
+    budget_comparison: str = Field(default="", description="Comparison of estimated cost vs provided budget")
+
+    @field_validator("total_estimated_cost", "estimated_costs", mode="before")
+    @classmethod
+    def coerce_total_cost(cls, v) -> float:
+        try:
+            val = float(v)
+        except (TypeError, ValueError):
+            return 0.0
+        if val < 0:
+            raise ValueError("Total cost cannot be negative")
+        return val
+
+    @field_validator("day_by_day_plans")
+    @classmethod
+    def validate_day_plans(cls, plans: list[DailyPlan], info) -> list[DailyPlan]:
+        if not info.context or "travel_request" not in info.context:
+            return plans
+        
+        req: TravelRequest = info.context["travel_request"]
+        start = req.start_date
+        end = req.end_date
+        expected_days = (end - start).days + 1
+
+        dates_seen = set()
+        for plan in plans:
+            # Pydantic coerced plan.date to dt_date or str. We will try to parse if str.
+            plan_date = plan.date
+            if isinstance(plan_date, str):
+                try:
+                    plan_date = datetime.strptime(plan_date, "%Y-%m-%d").date()
+                except ValueError:
+                    pass
+            
+            if isinstance(plan_date, dt_date):
+                if plan_date in dates_seen:
+                    raise ValueError(f"Duplicate date found: {plan_date}")
+                if plan_date < start or plan_date > end:
+                    raise ValueError(f"Invalid itinerary date {plan_date} falls outside requested range {start} to {end}")
+                dates_seen.add(plan_date)
+
+        if len(dates_seen) < expected_days:
+            raise ValueError(f"Missing days: expected {expected_days} days, got {len(dates_seen)}")
+
+        return plans
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def check_budget_explanation(cls, values, handler, info):
+        """
+        Enforce that substantially overbudget itineraries include an explanation.
+        Uses mode='wrap' to access ValidationInfo (context) which is unavailable
+        in mode='after' validators in Pydantic v2.
+        """
+        result = handler(values)
+
+        if not info.context or "travel_request" not in info.context:
+            return result
+
+        req: TravelRequest = info.context["travel_request"]
+
+        if result.total_estimated_cost > (req.budget_max * 1.2):
+            all_text = " ".join(
+                result.notes + result.assumptions + [result.budget_comparison]
+            ).lower()
+            if not any(kw in all_text for kw in ("budget", "cost", "exceed", "expensive")):
+                raise ValueError(
+                    "Estimated total substantially exceeds budget max without explanation "
+                    "in notes or assumptions"
+                )
+        return result
+

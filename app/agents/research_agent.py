@@ -5,14 +5,12 @@ Uses structured output with retry wrapper (Risk 5 bypass).
 from __future__ import annotations
 
 import logging
-from typing import Any
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
-from pydantic import ValidationError
 
 from app.core.config import get_settings
-from app.core.exceptions import LLMOutputParseError
+from app.core.exceptions import LLMOutputParseError, ToolExecutionError
 from app.models.domain import ResearchOutput
 from app.prompts.research_agent import RESEARCH_AGENT_SYSTEM_PROMPT, build_research_prompt
 from app.tools.web_search import web_search_tool
@@ -49,11 +47,11 @@ async def invoke_research_agent(
 ) -> ResearchOutput:
     """
     Runs the Research Agent using a ReAct-style loop.
-    
+
     Risk 5 bypass: Uses include_raw=True + retry loop with error-correction prompt.
-    Falls back to a minimal ResearchOutput on complete failure rather than crashing.
+    Raises ToolExecutionError if mandatory web research completely fails.
+    Raises LLMOutputParseError if structured extraction fails after all retries.
     """
-    settings = get_settings()
     llm = _build_research_llm()
 
     # Bind tools for ReAct loop
@@ -81,11 +79,10 @@ async def invoke_research_agent(
     ]
 
     # ── ReAct loop: let LLM use tools iteratively ─────────────────────────────
-    from langchain_core.messages import AIMessage, ToolMessage
-    import json
 
     tool_map = {t.name: t for t in _RESEARCH_TOOLS}
     collected_research: list[str] = []
+    web_search_success = False
 
     for step in range(8):  # Max 8 ReAct steps
         ai_msg = await llm_with_tools.ainvoke(messages)
@@ -105,6 +102,8 @@ async def invoke_research_agent(
                 try:
                     result = tool_map[tool_name].invoke(tool_args)
                     collected_research.append(f"[{tool_name}]: {result}")
+                    if tool_name == "web_search_tool":
+                        web_search_success = True
                 except Exception as exc:
                     result = f"Tool error: {exc}"
                     logger.warning(f"Tool {tool_name} error: {exc}")
@@ -114,6 +113,13 @@ async def invoke_research_agent(
             messages.append(
                 ToolMessage(content=str(result), tool_call_id=tool_id)
             )
+
+    if not web_search_success:
+        logger.error("Mandatory web research completely failed.")
+        raise ToolExecutionError(
+            tool_name="web_search_tool",
+            reason="Mandatory web research completely failed or was not performed."
+        )
 
     # ── Structured extraction: convert research into ResearchOutput ───────────
     extraction_prompt = (

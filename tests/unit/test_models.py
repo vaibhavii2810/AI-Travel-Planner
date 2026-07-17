@@ -32,6 +32,18 @@ class TestTravelRequest:
         )
         assert req.num_days == 7
 
+    def test_interests_normalized(self):
+        req = TravelRequest(
+            destination="Tokyo, Japan",
+            start_date=date(2025, 5, 1),
+            end_date=date(2025, 5, 8),
+            budget_min=1500.0,
+            budget_max=3000.0,
+            interests=["  Food ", "FOOD", "culture"],
+            num_travelers=2,
+        )
+        assert req.interests == ["food", "culture"]
+
     def test_end_before_start_raises(self):
         with pytest.raises(ValueError, match="end_date must be after start_date"):
             TravelRequest(
@@ -132,3 +144,110 @@ class TestAttractionCoercion:
             approximate_cost_per_person=0,
         )
         assert attr.approximate_cost_per_person == 0.0
+
+
+class TestItineraryValidation:
+
+    @pytest.fixture
+    def mock_travel_req(self):
+        return TravelRequest(
+            destination="Kyoto",
+            start_date=date(2025, 5, 1),
+            end_date=date(2025, 5, 3),
+            budget_min=1000,
+            budget_max=2000,
+            interests=["temples"],
+            num_travelers=1
+        )
+
+    def test_negative_costs_raise_error(self):
+        with pytest.raises(ValueError, match="cannot be negative"):
+            Activity(name="A", duration_minutes=60, estimated_cost_per_person=-10)
+
+        with pytest.raises(ValueError, match="cannot be negative"):
+            DailyPlan(day_number=1, date=date(2025, 5, 1), estimated_daily_cost_per_person=-50)
+
+    def test_missing_days_raises_error(self, mock_travel_req):
+        from app.models.domain import Itinerary, BudgetAllocation
+        plans = [
+            DailyPlan(day_number=1, date=date(2025, 5, 1)),
+            # missing day 2 and 3
+        ]
+        
+        with pytest.raises(ValueError, match="Missing days: expected 3 days, got 1"):
+            Itinerary.model_validate({
+                "destination": "Kyoto",
+                "dates": "May 1-3",
+                "budget_summary": BudgetAllocation(),
+                "day_by_day_plans": plans
+            }, context={"travel_request": mock_travel_req})
+
+    def test_duplicate_dates_raises_error(self, mock_travel_req):
+        from app.models.domain import Itinerary, BudgetAllocation
+        plans = [
+            DailyPlan(day_number=1, date=date(2025, 5, 1)),
+            DailyPlan(day_number=2, date=date(2025, 5, 1)), # duplicate
+            DailyPlan(day_number=3, date=date(2025, 5, 3)),
+        ]
+        
+        with pytest.raises(ValueError, match="Duplicate date"):
+            Itinerary.model_validate({
+                "destination": "Kyoto",
+                "dates": "May 1-3",
+                "budget_summary": BudgetAllocation(),
+                "day_by_day_plans": plans
+            }, context={"travel_request": mock_travel_req})
+
+    def test_invalid_dates_raises_error(self, mock_travel_req):
+        from app.models.domain import Itinerary, BudgetAllocation
+        plans = [
+            DailyPlan(day_number=1, date=date(2025, 5, 1)),
+            DailyPlan(day_number=2, date=date(2025, 5, 2)),
+            DailyPlan(day_number=3, date=date(2025, 5, 4)), # outside range
+        ]
+        
+        with pytest.raises(ValueError, match="falls outside requested range"):
+            Itinerary.model_validate({
+                "destination": "Kyoto",
+                "dates": "May 1-3",
+                "budget_summary": BudgetAllocation(),
+                "day_by_day_plans": plans
+            }, context={"travel_request": mock_travel_req})
+
+    def test_budget_overrun_without_explanation_raises_error(self, mock_travel_req):
+        from app.models.domain import Itinerary, BudgetAllocation
+        plans = [
+            DailyPlan(day_number=1, date=date(2025, 5, 1)),
+            DailyPlan(day_number=2, date=date(2025, 5, 2)),
+            DailyPlan(day_number=3, date=date(2025, 5, 3)),
+        ]
+        
+        with pytest.raises(ValueError, match="Estimated total substantially exceeds budget max without explanation"):
+            Itinerary.model_validate({
+                "destination": "Kyoto",
+                "dates": "May 1-3",
+                "budget_summary": BudgetAllocation(),
+                "day_by_day_plans": plans,
+                "total_estimated_cost": 3000.0, # max is 2000, 3000 > 2400 (1.2x)
+                "notes": ["Great trip!"],
+                "assumptions": ["Standard rates"]
+            }, context={"travel_request": mock_travel_req})
+            
+    def test_budget_overrun_with_explanation_passes(self, mock_travel_req):
+        from app.models.domain import Itinerary, BudgetAllocation
+        plans = [
+            DailyPlan(day_number=1, date=date(2025, 5, 1)),
+            DailyPlan(day_number=2, date=date(2025, 5, 2)),
+            DailyPlan(day_number=3, date=date(2025, 5, 3)),
+        ]
+        
+        # Should not raise
+        Itinerary.model_validate({
+            "destination": "Kyoto",
+            "dates": "May 1-3",
+            "budget_summary": BudgetAllocation(),
+            "day_by_day_plans": plans,
+            "total_estimated_cost": 3000.0,
+            "notes": ["Great trip!"],
+            "assumptions": ["Costs exceed budget because of requested luxury ryokan."]
+        }, context={"travel_request": mock_travel_req})
