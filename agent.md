@@ -2,6 +2,84 @@
 
 This document captures the architectural analysis, design decisions, and implementation strategies for the AI Travel Planner multi-agent system, as discussed by the AI Architect.
 
+## System Architecture (Mental Model)
+
+```text
+                    ┌──────────────────────────┐
+                    │       FastAPI API        │
+                    │                          │
+                    │ POST /plan               │
+                    │ GET  /plan/{id}          │
+                    │ POST /plan/{id}/review   │
+                    │ GET  /plan/{id}/final    │
+                    └────────────┬─────────────┘
+                                 │
+                                 ▼
+                    ┌──────────────────────────┐
+                    │      Plan Service        │
+                    └────────────┬─────────────┘
+                                 │
+                                 ▼
+                    ┌──────────────────────────┐
+                    │ LangGraph Orchestrator   │
+                    │      StateGraph          │
+                    └────────────┬─────────────┘
+                                 │
+                                 ▼
+                        Validate Request
+                                 │
+                                 ▼
+                    ┌──────────────────────────┐
+                    │     Research Agent       │
+                    │                          │
+                    │  ┌────────────────────┐  │
+                    │  │ Serper Web Search  │  │
+                    │  └────────────────────┘  │
+                    │  ┌────────────────────┐  │
+                    │  │ Weather Tool       │  │
+                    │  └────────────────────┘  │
+                    └────────────┬─────────────┘
+                                 │
+                                 ▼
+                    ┌──────────────────────────┐
+                    │ Itinerary Planner Agent  │
+                    │                          │
+                    │  ┌────────────────────┐  │
+                    │  │ Budget Allocator   │  │
+                    │  └────────────────────┘  │
+                    │  ┌────────────────────┐  │
+                    │  │ Schedule Optimizer │  │
+                    │  └────────────────────┘  │
+                    └────────────┬─────────────┘
+                                 │
+                                 ▼
+                           DRAFT ITINERARY
+                                 │
+                                 ▼
+                    ╔══════════════════════════╗
+                    ║    LANGGRAPH INTERRUPT   ║
+                    ║       HITL PAUSE         ║
+                    ╚════════════╤═════════════╝
+                                 │
+                           Human Review
+                                 │
+                   ┌─────────────┼─────────────┐
+                   │             │             │
+                 APPROVE       REJECT        MODIFY
+                   │             │             │
+                   ▼             ▼             ▼
+               Finalize      Re-research/    Targeted
+                 Plan         Re-plan         Revision
+                   │             │             │
+                   │             └──────┬──────┘
+                   │                    │
+                   │                    ▼
+                   │               HITL AGAIN
+                   │
+                   ▼
+                  END
+```
+
 ## Core Design Principles
 
 1.  **`plan_id` = `thread_id` (Single Identity)**
