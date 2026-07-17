@@ -223,17 +223,10 @@ class ReviewAction(str, Enum):
     MODIFY = "modify"
 
 
-# ── Structured Output Models ───────────────────────────────────────────────────
-
-class ResearchResult(_DomainModel):
-    destination_overview: str = Field(..., description="Overview of the destination")
-    attractions: list[Attraction] = Field(default_factory=list, description="Top attractions")
-    weather: WeatherSummary = Field(..., description="Weather summary and conditions")
-    safety_information: list[str] = Field(default_factory=list, description="Safety considerations and advisories")
-    local_tips: list[str] = Field(default_factory=list, description="Local insider tips and recommendations")
-    seasonal_considerations: str = Field(default="", description="Seasonal travel notes and recommendations")
-    sources: list[str] = Field(default_factory=list, description="Sources used for research")
-
+# ── Itinerary (used by itinerary_agent.py) ─────────────────────────────────────
+# Note: DraftItinerary (above) is used by the active graph pipeline (planner_agent.py).
+# Itinerary is the alternative schema used by the friend's itinerary_agent.py branch.
+# Both schemas are retained for compatibility.
 
 class Itinerary(_DomainModel):
     destination: str = Field(..., description="Destination of the trip")
@@ -246,7 +239,6 @@ class Itinerary(_DomainModel):
     notes: list[str] = Field(default_factory=list, description="Notes and general tips")
     total_estimated_cost: float = Field(default=0.0, description="Total estimated cost of the trip")
     assumptions: list[str] = Field(default_factory=list, description="Assumptions made by the planner")
-    # budget_comparison is validated last — we use it as a hook to enforce budget guardrails
     budget_comparison: str = Field(default="", description="Comparison of estimated cost vs provided budget")
 
     @field_validator("total_estimated_cost", "estimated_costs", mode="before")
@@ -265,7 +257,7 @@ class Itinerary(_DomainModel):
     def validate_day_plans(cls, plans: list[DailyPlan], info) -> list[DailyPlan]:
         if not info.context or "travel_request" not in info.context:
             return plans
-        
+
         req: TravelRequest = info.context["travel_request"]
         start = req.start_date
         end = req.end_date
@@ -273,19 +265,21 @@ class Itinerary(_DomainModel):
 
         dates_seen = set()
         for plan in plans:
-            # Pydantic coerced plan.date to dt_date or str. We will try to parse if str.
             plan_date = plan.date
             if isinstance(plan_date, str):
                 try:
-                    plan_date = datetime.strptime(plan_date, "%Y-%m-%d").date()
+                    from datetime import datetime as _dt
+                    plan_date = _dt.strptime(plan_date, "%Y-%m-%d").date()
                 except ValueError:
                     pass
-            
+
             if isinstance(plan_date, dt_date):
                 if plan_date in dates_seen:
                     raise ValueError(f"Duplicate date found: {plan_date}")
                 if plan_date < start or plan_date > end:
-                    raise ValueError(f"Invalid itinerary date {plan_date} falls outside requested range {start} to {end}")
+                    raise ValueError(
+                        f"Invalid itinerary date {plan_date} falls outside requested range {start} to {end}"
+                    )
                 dates_seen.add(plan_date)
 
         if len(dates_seen) < expected_days:
@@ -298,8 +292,6 @@ class Itinerary(_DomainModel):
     def check_budget_explanation(cls, values, handler, info):
         """
         Enforce that substantially overbudget itineraries include an explanation.
-        Uses mode='wrap' to access ValidationInfo (context) which is unavailable
-        in mode='after' validators in Pydantic v2.
         """
         result = handler(values)
 

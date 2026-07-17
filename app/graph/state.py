@@ -53,6 +53,9 @@ STATUS_FINALIZED = "finalized"
 STATUS_ERROR = "error"
 STATUS_MAX_REVISIONS = "max_revisions_exceeded"
 
+# NOTE: STATUS_FINALIZING was removed — no node emits this intermediate state.
+# finalize_node goes directly from awaiting_review → finalized.
+
 
 def initial_state(plan_id: str, travel_request: TravelRequest) -> TravelPlanState:
     """Build the initial state dict for a new graph run."""

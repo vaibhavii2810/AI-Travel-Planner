@@ -11,7 +11,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response as StarletteResponse
 
 from app.api.routes.plans import router as plans_router
 from app.core.checkpointer import build_checkpointer
@@ -88,6 +92,21 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # ── Request body size limit (100 KB) ──────────────────────────────────────
+    # Prevents oversized payloads from overwhelming the application.
+    # In production, also configure this at the reverse proxy (nginx/ALB) layer.
+    MAX_BODY_SIZE = 100_000  # 100 KB
+
+    @app.middleware("http")
+    async def limit_request_size(request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > MAX_BODY_SIZE:
+            return JSONResponse(
+                status_code=413,
+                content={"error": "REQUEST_TOO_LARGE", "message": f"Request body exceeds {MAX_BODY_SIZE} bytes."},
+            )
+        return await call_next(request)
 
     # ── Exception Handlers ────────────────────────────────────────────────────
 

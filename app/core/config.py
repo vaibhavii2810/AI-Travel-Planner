@@ -61,7 +61,10 @@ class Settings(BaseSettings):
     GRAPH_RECURSION_LIMIT: int = 50
 
     # ── CORS ──────────────────────────────────────────────────────────────────
-    CORS_ORIGINS: list[str] = ["*"]
+    CORS_ORIGINS: list[str] = Field(
+        default=["http://localhost:3000", "http://localhost:8000"],
+        description="Allowed CORS origins. Override via CORS_ORIGINS env var in production (e.g. https://yourdomain.com).",
+    )
 
     @field_validator("LOG_LEVEL")
     @classmethod

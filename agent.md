@@ -205,3 +205,26 @@ The state machine orchestrator was successfully implemented via LangGraph's `Sta
 2. **Genuine HITL Pauses**: `interrupt()` inside `hitl_review_node` genuinely suspends the thread. `Command(resume=review_decision)` resumes the exact thread without simulation. 
 3. **Advanced Conditional Routing Edge**: The `route_after_review` edge checks max revisions limits first (default 5, `max_revisions_node`), then conditionally dispatches `approve` → `finalize_node`, `modify` → `planner_node`, or uses keyword heuristics to route `reject` to `research_node` (if research keywords detected) or `planner_node`. 
 4. **Validation**: Integration tests were significantly expanded to confirm serialization compatibility with `AsyncMock` via msgpack, check state transition edge cases, and verify routing behaviors without raising unhandled errors. The total test count grew to **71 passing tests** with 0 failures, ensuring complete robustness.
+
+## Phase 7 & 8: Senior Code Review & Production Readiness (Prompts 9 & 10)
+
+The final phase involved a rigorous architectural audit (simulating a Senior AI/ML Engineer take-home review) and production hardening.
+
+1. **Rejection Criteria Cleared**: 
+   - Verified that `interrupt()` genuinely pauses execution (no simulated pauses).
+   - Confirmed `Command(resume=...)` is used correctly to re-enter suspended graphs.
+   - Verified state persistence via the environment-gated Checkpointer Factory (`MemorySaver` → `SqliteSaver` → `AsyncPostgresSaver`).
+   - Ensured business logic is isolated in the `PlanningService`, keeping FastAPI routes strictly as HTTP wrappers.
+
+2. **Code Fixes Implemented**:
+   - **CORS Hardening**: Changed wildcard `["*"]` to safe default `localhost` origins, overriding via `CORS_ORIGINS` env var in prod.
+   - **Payload Limits**: Added `ContentSizeLimitMiddleware` capping incoming requests to 100KB to prevent memory-exhaustion attacks.
+   - **Prompt Injection Defense**: Appended explicit adversarial guards to the Research Agent's system prompt to treat web search snippets as "UNTRUSTED EXTERNAL DATA".
+   - **Dead Code Cleanup**: Removed unused constants (`STATUS_FINALIZING`) and safely segmented redundant schemas (`Itinerary` vs `DraftItinerary`) to preserve test compatibility.
+
+3. **Final Test Status**: 
+   - The test suite was fully verified, resulting in **97 passing tests** covering E2E functional flows, error edge-cases, validation rejections (HTTP 422), and state machine conflicts (HTTP 409). 
+   - Test suite coverage confirms the orchestrator successfully prevents infinite loops (`max_revisions_node`), parses invalid LLM structured output via retry loops, and gracefully degrades external API failures.
+
+4. **Production Roadmap**:
+   - The `README.md` was updated to explicitly document take-home constraints vs. Day-1 Enterprise requirements (e.g., Redis rate limiting, JWT OAuth2 authentication, Celery/Temporal multi-worker deployments, and LLM semantic caching).
