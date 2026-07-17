@@ -173,6 +173,18 @@ def compiled_graph(memory_checkpointer):
 
 # ── FastAPI test client ───────────────────────────────────────────────────────
 
+@pytest.fixture(autouse=True)
+def clear_plan_repo():
+    """
+    Reset the PlanRepository in-memory store before every test.
+    Prevents state bleed when tests share the module-level _store dict.
+    """
+    import app.services.plan_repository as repo_module
+    repo_module._store.clear()
+    yield
+    repo_module._store.clear()
+
+
 @pytest_asyncio.fixture
 async def async_client(test_settings) -> AsyncGenerator[AsyncClient, None]:
     """

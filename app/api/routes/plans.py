@@ -26,7 +26,7 @@ router = APIRouter(prefix="/plan", tags=["Travel Planning"])
 @router.post(
     "",
     response_model=CreatePlanResponse,
-    status_code=status.HTTP_202_ACCEPTED,
+    status_code=status.HTTP_201_CREATED,
     summary="Submit a new travel planning request",
     description=(
         "Creates a new AI-powered travel plan. Returns a plan_id immediately. "

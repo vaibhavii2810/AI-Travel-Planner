@@ -9,6 +9,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -96,6 +97,35 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=exc.http_status,
             content=exc.to_dict(),
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error_handler(request: Request, exc: RequestValidationError):
+        """Normalize Pydantic/FastAPI validation errors into our consistent ErrorResponse schema."""
+        errors = exc.errors()
+        logger.warning(f"RequestValidationError on {request.method} {request.url.path}: {errors}")
+
+        # Pydantic v2 ctx values may contain non-serializable objects (e.g. ValueError).
+        # Sanitize them to strings so JSONResponse can serialize the payload.
+        safe_errors = []
+        for err in errors:
+            safe_err = dict(err)
+            if "ctx" in safe_err:
+                safe_err["ctx"] = {k: str(v) for k, v in safe_err["ctx"].items()}
+            safe_errors.append(safe_err)
+
+        first = safe_errors[0] if safe_errors else {}
+        field = ".".join(str(loc) for loc in first.get("loc", []) if loc != "body")
+        msg = first.get("msg", "Validation error")
+        detail = f"{field}: {msg}" if field else msg
+
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={
+                "error": "VALIDATION_ERROR",
+                "message": detail,
+                "detail": safe_errors,  # Full errors included for client debugging; no stack traces
+            },
         )
 
     @app.exception_handler(Exception)

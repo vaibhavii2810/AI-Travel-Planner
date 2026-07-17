@@ -72,3 +72,7 @@ class PlanRepository:
 
     async def delete(self, plan_id: str) -> bool:
         return _store.pop(plan_id, None) is not None
+
+    def clear(self) -> None:
+        """Wipe all records. Only for use in tests — resets the in-memory store."""
+        _store.clear()

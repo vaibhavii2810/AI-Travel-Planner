@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.domain import TravelRequest
 
@@ -30,18 +30,11 @@ class ReviewRequest(BaseModel):
         description="Required when action='modify'. Targeted changes to apply to the itinerary.",
     )
 
-    @field_validator("feedback")
-    @classmethod
-    def feedback_required_for_reject(cls, v: Optional[str], info) -> Optional[str]:
-        action = info.data.get("action")
-        if action == "reject" and not v:
-            raise ValueError("feedback is required when action is 'reject'")
-        return v
-
-    @field_validator("modifications")
-    @classmethod
-    def modifications_required_for_modify(cls, v: Optional[dict], info) -> Optional[dict]:
-        action = info.data.get("action")
-        if action == "modify" and not v:
+    @model_validator(mode="after")
+    def validate_action_fields(self) -> "ReviewRequest":
+        """Enforce cross-field rules: reject requires feedback, modify requires modifications."""
+        if self.action == "reject" and not self.feedback:
+            raise ValueError("feedback is required and must be non-empty when action is 'reject'")
+        if self.action == "modify" and not self.modifications:
             raise ValueError("modifications is required when action is 'modify'")
-        return v
+        return self
