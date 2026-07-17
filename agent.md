@@ -181,4 +181,18 @@ The core API and validation logic are fully validated through both automated tes
 2. **Swagger & Health Checks:**
    Starting the FastAPI server with `uvicorn app.main:app` successfully configures the routing context and compiles the `StateGraph` checkpointer. Accessing `/api/v1/health` confirms the system status is healthy and the `AsyncSqliteSaver` checkpointer is active.
 
+## Phase 3: Independent Tool Components
 
+Four distinct tools provide deterministic logic and external data integration for the agents. To ensure graph stability, **graceful degradation** is strictly enforced.
+
+1. **Serper Web Search (`web_search.py`)**
+   * **Implementation:** Synchronous REST calls via `httpx.Client` utilizing environment-loaded API keys.
+   * **Fallback Strategy:** Captures `httpx.TimeoutException` and HTTP non-200 responses. Instead of raising exceptions that would crash the LangGraph run, it returns a formatted string: `[Search failed: <reason>. Proceeding with available information.]` allowing the LLM to proceed using internal knowledge.
+2. **Weather Tool (`weather.py`)**
+   * **Implementation:** Integrates with OpenWeatherMap. Respects strict non-fabrication rules for dates exceeding forecast availability.
+   * **Fallback Strategy:** Network failures trigger the `_unavailable_weather()` fallback, instantly returning a safe mock dictionary (e.g., `"data_available": False`, `"conditions": "Weather data unavailable"`).
+3. **Budget Allocator (`budget_allocator.py`)**
+   * **Implementation:** Pure deterministic Python logic independent of LLMs. Applies a predefined `_DESTINATION_COST_TIERS` mapping (e.g., Tokyo=1.4x, Hanoi=0.5x cost-of-living multiplier) to proportionally distribute the user's budget across defined categories (Accommodation, Transport, Food, Activities, Contingency).
+4. **Schedule Optimizer (`schedule_optimizer.py`)**
+   * **Implementation:** A deterministic scheduling algorithm that classifies activities by ideal time slots (morning/afternoon/evening) and calculates a "fatigue score" to prevent day-overloading (e.g., placing high-energy hikes in the morning). 
+   * **Fallback Strategy:** Gracefully catches malformed `JSONDecodeError` payloads sent by the LLM, falling back to natural ordering without crashing.
