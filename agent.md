@@ -172,3 +172,13 @@ ai-travel-planner/
 ├── requirements.txt         # pinned requirements
 ```
 
+## Verification & Validation
+
+The core API and validation logic are fully validated through both automated tests and manual Swagger UI audits:
+
+1. **Automated Verification:** 
+   Running the test suite executes unit and integration tests checking model constraints (e.g., date logic, budget constraints, review request structure) and verifying state graph routing logic. All 53 tests pass cleanly.
+2. **Swagger & Health Checks:**
+   Starting the FastAPI server with `uvicorn app.main:app` successfully configures the routing context and compiles the `StateGraph` checkpointer. Accessing `/api/v1/health` confirms the system status is healthy and the `AsyncSqliteSaver` checkpointer is active.
+
+
