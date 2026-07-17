@@ -5,6 +5,7 @@ All LLM-generated objects are defined here with LLM-tolerant validators.
 from __future__ import annotations
 
 from datetime import date as dt_date, datetime, timezone
+from enum import Enum
 from typing import Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -187,11 +188,12 @@ class DraftItinerary(_DomainModel):
 
 # ── Review ─────────────────────────────────────────────────────────────────────
 
-class ReviewAction(str):
+class ReviewAction(str, Enum):
+    """
+    Human-in-the-Loop review actions.
+    Inherits from str so values can be compared directly to strings:
+        ReviewAction.APPROVE == "approve"  →  True
+    """
     APPROVE = "approve"
     REJECT = "reject"
     MODIFY = "modify"
-
-    @classmethod
-    def values(cls) -> list[str]:
-        return [cls.APPROVE, cls.REJECT, cls.MODIFY]
