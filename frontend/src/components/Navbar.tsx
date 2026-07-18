@@ -98,13 +98,13 @@ export function Navbar({ showBack, planId, onCopyId, copied, rightSlot }: Navbar
                 style={{
                   fontSize: '10px',
                   fontWeight: 500,
-                  color: 'var(--accent)',
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.02em',
                   lineHeight: 1,
+                  fontStyle: 'italic',
                 }}
               >
-                Smart Trip Planner
+                Plan smarter. Travel better.
               </div>
             </div>
           </Link>
@@ -114,39 +114,7 @@ export function Navbar({ showBack, planId, onCopyId, copied, rightSlot }: Navbar
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {rightSlot}
 
-          {planId && onCopyId && (
-            <button
-              onClick={onCopyId}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '5px 10px',
-                borderRadius: '6px',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: 'var(--text-muted)',
-                fontSize: '11px',
-                fontFamily: 'monospace',
-                cursor: 'pointer',
-                transition: 'all 150ms',
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
-                (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-hover)';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-                (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
-              }}
-            >
-              {copied ? (
-                <span style={{ color: 'var(--accent)' }}>✓ Copied</span>
-              ) : (
-                <span>#{planId.slice(0, 8)}…</span>
-              )}
-            </button>
-          )}
+          {/* plan ID intentionally hidden — keep props for future use */
 
           {/* Dark / Light toggle */}
           <button

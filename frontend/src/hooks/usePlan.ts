@@ -7,7 +7,7 @@
  * - Expose review handlers (approve/reject/modify)
  * - Fetch final plan after approval
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef } from 'react';
 import { usePolling } from './usePolling';
 import {
   getPlan,
@@ -24,7 +24,7 @@ import type {
 
 // Statuses where we should poll for updates
 const POLLING_STATUSES: PlanStatus[] = ['queued', 'researching', 'planning', 'revising'];
-const POLL_INTERVAL_MS = 3000;
+const POLL_INTERVAL_MS = 2500;
 
 export interface UsePlanReturn {
   plan: PlanStatusResponse | null;
@@ -43,6 +43,10 @@ export function usePlan(planId: string | undefined): UsePlanReturn {
   const [reviewLoading, setReviewLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
 
+  // Keep a ref to current plan so polling closure always sees latest value
+  const planRef = useRef<PlanStatusResponse | null>(null);
+  planRef.current = plan;
+
   const fetchPlan = useCallback(async () => {
     if (!planId) return;
     try {
@@ -51,7 +55,7 @@ export function usePlan(planId: string | undefined): UsePlanReturn {
       setError(null);
 
       // If finalized, also fetch the final plan
-      if (data.status === 'finalized' && !finalPlan) {
+      if (data.status === 'finalized' && !planRef.current?.final_itinerary) {
         try {
           const fp = await getFinalPlan(planId);
           setFinalPlan(fp);
@@ -62,7 +66,7 @@ export function usePlan(planId: string | undefined): UsePlanReturn {
     } catch (err) {
       setError(err as ApiError);
     }
-  }, [planId, finalPlan]);
+  }, [planId]);
 
   // Initial fetch + set loading on first call
   const refetch = useCallback(async () => {
@@ -72,7 +76,7 @@ export function usePlan(planId: string | undefined): UsePlanReturn {
     setLoading(false);
   }, [planId, fetchPlan]);
 
-  // Polling: only while in active processing states
+  // Poll whenever plan is in an active processing state
   const shouldPoll = !!planId && !!plan && POLLING_STATUSES.includes(plan.status);
   usePolling(fetchPlan, POLL_INTERVAL_MS, shouldPoll);
 
@@ -83,19 +87,22 @@ export function usePlan(planId: string | undefined): UsePlanReturn {
       setError(null);
       try {
         await reviewPlan(planId, review);
-        // After submitting, refetch to get the updated status
+
+        // Immediately refetch to capture any fast status transition
         const updated = await getPlan(planId);
         setPlan(updated);
 
-        // If immediately finalized (approve path), fetch final plan
+        // If immediately finalized (approve path), fetch the final itinerary
         if (updated.status === 'finalized') {
           try {
             const fp = await getFinalPlan(planId);
             setFinalPlan(fp);
           } catch {
-            // Will be retried by polling
+            // Will be retried on next poll cycle
           }
         }
+        // For reject/modify paths the status will be 'revising' — polling
+        // (shouldPoll becomes true again) takes over from here automatically.
       } catch (err) {
         setError(err as ApiError);
       } finally {
