@@ -48,6 +48,7 @@ async def planner_node(state: TravelPlanState) -> dict:
     research_output: ResearchOutput = state["research_output"]
     rejection_feedback: str | None = state.get("rejection_feedback")
     modification_request: dict | None = state.get("modification_request")
+    previous_draft = state.get("draft_itinerary")
 
     draft_itinerary = await invoke_planner_agent(
         travel_request=travel_request,
@@ -55,6 +56,7 @@ async def planner_node(state: TravelPlanState) -> dict:
         revision_count=current_revision,
         rejection_feedback=rejection_feedback,
         modification_request=modification_request,
+        draft_itinerary=previous_draft,
     )
 
     new_revision_count = current_revision + 1

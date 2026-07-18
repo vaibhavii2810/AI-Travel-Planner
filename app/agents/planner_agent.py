@@ -66,6 +66,7 @@ async def invoke_planner_agent(
     revision_count: int = 0,
     rejection_feedback: str | None = None,
     modification_request: dict | None = None,
+    draft_itinerary: DraftItinerary | None = None,
     max_retries: int = 2,
 ) -> DraftItinerary:
     """
@@ -78,6 +79,8 @@ async def invoke_planner_agent(
     structured_llm = llm.with_structured_output(DraftItinerary, include_raw=True)
 
     research_summary = _research_to_summary(research_output)
+
+    draft_json = draft_itinerary.model_dump_json(indent=2) if draft_itinerary else None
 
     human_prompt = build_planner_prompt(
         destination=travel_request.destination,
@@ -93,6 +96,7 @@ async def invoke_planner_agent(
         revision_count=revision_count,
         rejection_feedback=rejection_feedback,
         modification_request=modification_request,
+        draft_itinerary=draft_json,
     )
 
     messages = [

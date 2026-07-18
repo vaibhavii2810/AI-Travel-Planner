@@ -73,9 +73,9 @@ This is revision #{revision_count}. The user has requested the following modific
 
 {modifications}
 
-Apply ONLY these specific changes. Preserve all other parts of the itinerary.
+Apply ONLY these specific changes. Preserve all other parts of the itinerary exactly as they are. 
+Ensure you recalculate the budget to reflect these modifications.
 """
-
 
 def build_planner_prompt(
     destination: str,
@@ -91,17 +91,21 @@ def build_planner_prompt(
     revision_count: int = 0,
     rejection_feedback: str | None = None,
     modification_request: dict | None = None,
+    draft_itinerary: str | None = None,
 ) -> str:
     revision_section = ""
+    if draft_itinerary and (rejection_feedback or modification_request):
+        revision_section += f"## Current Itinerary\n```json\n{draft_itinerary}\n```\n\n"
+
     if rejection_feedback:
-        revision_section = REJECTION_REVISION_SECTION.format(
+        revision_section += REJECTION_REVISION_SECTION.format(
             revision_count=revision_count,
             feedback=rejection_feedback,
         )
     elif modification_request:
         import json
         mods_str = json.dumps(modification_request, indent=2)
-        revision_section = MODIFICATION_REVISION_SECTION.format(
+        revision_section += MODIFICATION_REVISION_SECTION.format(
             revision_count=revision_count,
             modifications=mods_str,
         )
