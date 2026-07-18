@@ -114,7 +114,7 @@ export function Navbar({ showBack, planId, onCopyId, copied, rightSlot }: Navbar
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {rightSlot}
 
-          {/* plan ID intentionally hidden — keep props for future use */
+          {/* plan ID intentionally hidden — keep props for future use */}
 
           {/* Dark / Light toggle */}
           <button
