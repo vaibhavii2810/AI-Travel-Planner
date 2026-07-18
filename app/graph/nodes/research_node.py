@@ -55,6 +55,6 @@ async def research_node(state: TravelPlanState) -> dict:
         "research_output": research_output,
         "status": active_status,
         "updated_at": datetime.now(timezone.utc),
-        # Clear rejection feedback once processed
-        "rejection_feedback": None,
+        # NOTE: Do NOT clear rejection_feedback here — the planner_node
+        # downstream needs it to produce a visibly revised itinerary.
     }

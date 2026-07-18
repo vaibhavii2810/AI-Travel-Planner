@@ -396,8 +396,9 @@ async def lifespan(app: FastAPI):
             rejection_feedback = kwargs.get("rejection_feedback")
             modification_request = kwargs.get("modification_request")
 
-            # Artificially alter the plan if this is a revision so the user sees a visible change!
-            if revision_count > 0 and (rejection_feedback or modification_request):
+            # Apply visible changes whenever feedback or modifications are provided
+            # (revision_count check removed — feedback can come on the first revision)
+            if rejection_feedback or modification_request:
                 feedback_text = rejection_feedback or (modification_request.get("instructions") if modification_request else "User feedback")
                 # Mark first day as revised and prepend a custom activity to morning slot
                 daily_plans[0].theme = "✨ Revised — " + daily_plans[0].theme
