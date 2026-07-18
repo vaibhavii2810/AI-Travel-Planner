@@ -1,0 +1,86 @@
+/* Tailwind CSS v4 */
+@import "tailwindcss";
+
+/* ── Custom theme tokens ────────────────────────────────────────────────────── */
+@theme {
+  /* Inter font */
+  --font-sans: 'Inter', system-ui, sans-serif;
+
+  /* Brand blue palette */
+  --color-brand-50:  #eef7ff;
+  --color-brand-100: #d9ecff;
+  --color-brand-200: #bcdeff;
+  --color-brand-300: #8eccff;
+  --color-brand-400: #59b2fd;
+  --color-brand-500: #3291fa;
+  --color-brand-600: #1a71ef;
+  --color-brand-700: #135bdc;
+  --color-brand-800: #164ab2;
+  --color-brand-900: #18428c;
+  --color-brand-950: #132955;
+
+  /* Custom shadows */
+  --shadow-card:       0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-card-hover: 0 4px 16px 0 rgb(0 0 0 / 0.10), 0 2px 4px -1px rgb(0 0 0 / 0.06);
+  --shadow-modal:      0 20px 60px -10px rgb(0 0 0 / 0.25);
+
+  /* Border radius */
+  --radius-xl:  0.875rem;
+  --radius-2xl: 1.25rem;
+
+  /* Animations */
+  --animate-fade-in:    fadeIn 0.3s ease-out;
+  --animate-slide-up:   slideUp 0.35s ease-out;
+  --animate-pulse-slow: pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* ── Base reset & typography ────────────────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background-color: #f8fafc;
+    color: #0f172a;
+    line-height: 1.6;
+  }
+
+  #root { min-height: 100vh; }
+
+  input[type='date']::-webkit-calendar-picker-indicator {
+    opacity: 0.5;
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+  }
+}
+
+/* ── Print styles ────────────────────────────────────────────────────────────── */
+@media print {
+  header, .no-print { display: none !important; }
+  body { background: white !important; font-size: 12px; }
+  .shadow-card, .shadow-card-hover {
+    box-shadow: none !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+}
