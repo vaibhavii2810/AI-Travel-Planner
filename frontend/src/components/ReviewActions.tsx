@@ -31,15 +31,7 @@ export function ReviewActions({ loading, onApprove, onReject, onModify, revision
             Scroll through the itinerary below, then approve, request changes, or reject.
           </p>
         </div>
-        {revisionCount > 0 && (
-          <span style={{
-            padding: '4px 12px', borderRadius: '99px', fontSize: '11px', fontWeight: 600,
-            background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)',
-            color: '#fbbf24',
-          }}>
-            Revision {revisionCount}
-          </span>
-        )}
+
       </div>
 
       {/* Actions */}

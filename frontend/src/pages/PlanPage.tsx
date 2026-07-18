@@ -30,6 +30,7 @@ export function PlanPage() {
   const [showReject,  setShowReject]  = useState(false);
   const [showModify,  setShowModify]  = useState(false);
   const [copied,      setCopied]      = useState(false);
+  const [toastMsg,    setToastMsg]    = useState('');
 
   useEffect(() => {
     if (planId) {
@@ -46,10 +47,14 @@ export function PlanPage() {
   const handleRejectSubmit = async (feedback: string) => {
     await submitReview({ action: 'reject', feedback });
     setShowReject(false);
+    setToastMsg('Feedback sent! The AI agents are researching your revisions.');
+    setTimeout(() => setToastMsg(''), 4000);
   };
   const handleModifySubmit = async (instructions: string) => {
     await submitReview({ action: 'modify', modifications: { instructions } });
     setShowModify(false);
+    setToastMsg('Modifications submitted! The planner is updating your itinerary.');
+    setTimeout(() => setToastMsg(''), 4000);
   };
 
   const copyPlanId = async () => {
@@ -193,16 +198,7 @@ export function PlanPage() {
           </div>
         )}
 
-        {/* Revision notice */}
-        {isAwaitingReview && plan.revision_count > 0 && (
-          <div style={{
-            padding: '10px 16px', marginBottom: '16px',
-            background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)',
-            borderRadius: '10px', fontSize: '13px', color: '#fbbf24',
-          }} className="animate-fade-in">
-            ✍️ Revised plan — Revision {plan.revision_count} awaiting your review
-          </div>
-        )}
+
 
         {/* Itinerary + budget */}
         {displayItinerary && (
@@ -236,6 +232,21 @@ export function PlanPage() {
         {/* Loading skeleton during processing */}
         {isProcessing && !displayItinerary && (
           <div style={{ marginTop: '24px' }}><ItinerarySkeleton /></div>
+        )}
+
+        {/* Success toast */}
+        {toastMsg && (
+          <div style={{
+            position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+            padding: '12px 24px', zIndex: 100,
+            background: 'var(--accent)', border: '1px solid var(--accent)',
+            borderRadius: '99px', boxShadow: '0 4px 20px rgba(34,197,94,0.3)',
+            fontSize: '13px', fontWeight: 700, color: '#000',
+            display: 'flex', alignItems: 'center', gap: '8px'
+          }} className="animate-slide-up" role="alert">
+            <CheckCircle size={16} />
+            {toastMsg}
+          </div>
         )}
 
         {/* Error toast */}

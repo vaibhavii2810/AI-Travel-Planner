@@ -265,3 +265,14 @@ The final phase involved a rigorous architectural audit (simulating a Senior AI/
    - Conducted E2E validation verifying form creation, theme switching, loading skeletons, and finalized success states.
    - Confirmed 100% unique, non-repeating activity schedules across all days of the trip.
 
+---
+
+## Phase 11: HITL UI Refinements & Validation
+
+1. **HITL Feedback Notifications**:
+   - Added a fixed-position success toast notification to `PlanPage.tsx`. When a user submits modifications or rejection feedback, a green toast elegantly slides up confirming the feedback was sent and the planner is rebuilding the itinerary, reinforcing confidence in the background orchestrator.
+   - Restyled the `ModifyModal.tsx` and `RejectModal.tsx` components to strictly adhere to the new premium dark-theme CSS variables, completely stripping out generic Tailwind classes in favor of `modal-backdrop` and `modal-panel`.
+
+2. **Strict UI Cleanup**:
+   - Stripped out placeholder pill badges (e.g., "Powered by LangGraph") from the `HomePage` to ensure the product reads exclusively as a premium travel brand rather than a technical demo.
+   - Removed redundant "Revision 1" pill counters from the `ReviewActions` component and the associated banner in `PlanPage` to keep the interface minimal and distraction-free for the user.
