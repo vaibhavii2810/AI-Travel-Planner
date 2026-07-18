@@ -61,17 +61,20 @@ class TestRouteAfterReview:
         state = _make_state("modify")
         assert route_after_review(state) == "planner_node"
 
-    def test_reject_with_research_feedback_routes_to_research(self):
+    def test_reject_routes_to_rejected_node(self):
+        """Reject always terminates via rejected_node regardless of feedback content."""
         state = _make_state("reject", feedback="The weather data seems wrong and outdated")
-        assert route_after_review(state) == "research_node"
+        assert route_after_review(state) == "rejected_node"
 
-    def test_reject_with_planner_feedback_routes_to_planner(self):
+    def test_reject_planner_feedback_routes_to_rejected_node(self):
+        """Reject always terminates via rejected_node — no re-planning."""
         state = _make_state("reject", feedback="Day 2 is too expensive, please cut costs")
-        assert route_after_review(state) == "planner_node"
+        assert route_after_review(state) == "rejected_node"
 
-    def test_reject_empty_feedback_routes_to_planner(self):
+    def test_reject_empty_feedback_routes_to_rejected_node(self):
+        """Reject with empty feedback still routes to rejected_node."""
         state = _make_state("reject", feedback="")
-        assert route_after_review(state) == "planner_node"
+        assert route_after_review(state) == "rejected_node"
 
     def test_max_revisions_guard_fires_before_approve(self, test_settings):
         """MAX_REVISIONS guard has priority — even approve is overridden."""

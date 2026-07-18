@@ -232,12 +232,14 @@ class TestRejectWithReResearch:
     """
 
     @pytest.mark.asyncio
-    async def test_reject_triggers_research_node(self, compiled_graph, sample_travel_request):
+    async def test_reject_terminates_to_rejected_status(self, compiled_graph, sample_travel_request):
         """
-        Verify that feedback mentioning weather/safety/outdated info causes
-        the graph to call research_node again on resume.
+        Verify that any reject action routes to rejected_node and terminates.
+        Reject is now always terminal — it never re-researches or re-plans.
         """
-        plan_id = "test-flow-b-re-research"
+        from app.graph.state import STATUS_REJECTED
+
+        plan_id = "test-flow-b-reject-terminal"
         config = {"configurable": {"thread_id": plan_id}}
         state = initial_state(plan_id, sample_travel_request)
 
@@ -253,7 +255,7 @@ class TestRejectWithReResearch:
             result = await compiled_graph.ainvoke(state, config=config)
             assert result.get("status") == STATUS_AWAITING_REVIEW
 
-            # Reject with feedback that triggers re-research
+            # Reject with any feedback (even research-sounding keywords)
             research_feedback = {
                 "action": "reject",
                 "feedback": "The weather information is completely wrong and outdated",
@@ -264,11 +266,14 @@ class TestRejectWithReResearch:
                 Command(resume=research_feedback), config=config
             )
 
-            # After re-research + re-plan it should be back at awaiting_review
-            assert resumed.get("status") == STATUS_AWAITING_REVIEW
-            assert resumed.get("revision_count") == 2
+            # Reject is now TERMINAL — status must be rejected, graph ends
+            assert resumed.get("status") == STATUS_REJECTED
 
-            # Research must have been called TWICE (initial + re-research)
-            assert mock_research.call_count == 2
-            # Planner must have been called TWICE (initial + revision)
-            assert mock_planner.call_count == 2
+            # Graph finished — next is empty
+            snapshot = await compiled_graph.aget_state(config)
+            assert snapshot.next == ()
+
+            # Research called ONCE (initial only) — reject does NOT re-research
+            assert mock_research.call_count == 1
+            # Planner called ONCE (initial only) — reject does NOT re-plan
+            assert mock_planner.call_count == 1

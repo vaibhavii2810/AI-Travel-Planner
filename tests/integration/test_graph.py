@@ -63,9 +63,11 @@ async def test_hitl_genuinely_pauses(compiled_graph, sample_travel_request):
 
 
 @pytest.mark.asyncio
-async def test_reject_routing_loop(compiled_graph, sample_travel_request):
-    """Tests that a rejection routes back correctly."""
-    plan_id = "test-plan-reject-loop"
+async def test_reject_terminates_graph(compiled_graph, sample_travel_request):
+    """Tests that reject routes to rejected_node and terminates cleanly."""
+    from app.graph.state import STATUS_REJECTED
+
+    plan_id = "test-plan-reject-terminal"
     config = {"configurable": {"thread_id": plan_id}}
     state = initial_state(plan_id, sample_travel_request)
 
@@ -79,23 +81,24 @@ async def test_reject_routing_loop(compiled_graph, sample_travel_request):
         # Run to first pause
         await compiled_graph.ainvoke(state, config=config)
         
-        # Reject with planner feedback
         reject_decision = {
             "action": "reject", 
-            "feedback": "make it cheaper", # Doesn't trigger re-research
+            "feedback": "I don't want this plan at all.",
             "modifications": None
         }
         
-        # Resume
+        # Resume — should go to rejected_node and terminate
         resumed_result = await compiled_graph.ainvoke(Command(resume=reject_decision), config=config)
         
-        # Because we mocked planner to just return immediately, it should loop right back to review
-        assert resumed_result.get("status") == STATUS_AWAITING_REVIEW
-        assert resumed_result.get("revision_count") == 2
+        # Status must be rejected (terminal)
+        assert resumed_result.get("status") == STATUS_REJECTED
         
-        # Check mock calls to ensure we hit planner again, but NOT research
-        assert mock_planner.call_count == 2
-        assert mock_research.call_count == 1
+        # Graph must have finished cleanly
+        snapshot = await compiled_graph.aget_state(config)
+        assert snapshot.next == ()
+        
+        # Planner was called only once (initial plan) — reject does NOT re-plan
+        assert mock_planner.call_count == 1
 
 @pytest.mark.asyncio
 async def test_modify_routing_loop(compiled_graph, sample_travel_request):
