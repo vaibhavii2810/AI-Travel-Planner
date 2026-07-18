@@ -238,7 +238,7 @@ export function PlanPage() {
         {toastMsg && (
           <div style={{
             position: 'fixed', bottom: '28px',
-            left: '50%', transform: 'translateX(-50%)',
+            left: 0, right: 0, margin: '0 auto',
             width: 'max-content', maxWidth: 'calc(100vw - 48px)',
             padding: '12px 20px', zIndex: 9999,
             background: 'var(--accent)',

@@ -393,6 +393,24 @@ async def lifespan(app: FastAPI):
             total_days = len(daily_plans)
             total_cost = sum(p.estimated_daily_cost_per_person for p in daily_plans) * req.num_travelers
 
+            rejection_feedback = kwargs.get("rejection_feedback")
+            modification_request = kwargs.get("modification_request")
+
+            # Artificially alter the first day if this is a revision so the user sees a visible change!
+            if revision_count > 0 and (rejection_feedback or modification_request):
+                feedback_text = rejection_feedback or (modification_request.get("instructions") if modification_request else "User feedback")
+                daily_plans[0].theme = "✨ Revised: " + daily_plans[0].theme
+                daily_plans[0].travel_notes = f"Updated based on your feedback: {feedback_text}"
+                daily_plans[0].afternoon.append(Activity(
+                    name=f"Custom Request Fulfilled",
+                    description=f"Added based on your feedback: {feedback_text}",
+                    location=req.destination,
+                    duration_minutes=60,
+                    estimated_cost_per_person=0.0,
+                    booking_required=False,
+                    tips="Specially requested addition!"
+                ))
+
             food_weight         = 0.30 if "food"      in interests else 0.22
             nightlife_weight    = 0.12 if "nightlife" in interests else 0.05
             activities_weight   = 0.15 if any(i in interests for i in ["adventure", "culture", "art"]) else 0.10
