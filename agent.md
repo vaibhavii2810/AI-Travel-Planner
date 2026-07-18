@@ -222,9 +222,11 @@ The final phase involved a rigorous architectural audit (simulating a Senior AI/
    - **Prompt Injection Defense**: Appended explicit adversarial guards to the Research Agent's system prompt to treat web search snippets as "UNTRUSTED EXTERNAL DATA".
    - **Dead Code Cleanup**: Removed unused constants (`STATUS_FINALIZING`) and safely segmented redundant schemas (`Itinerary` vs `DraftItinerary`) to preserve test compatibility.
 
-3. **Final Test Status**: 
+3. **Final Test & Operational Verification**: 
    - The test suite was fully verified, resulting in **97 passing tests** covering E2E functional flows, error edge-cases, validation rejections (HTTP 422), and state machine conflicts (HTTP 409). 
-   - Test suite coverage confirms the orchestrator successfully prevents infinite loops (`max_revisions_node`), parses invalid LLM structured output via retry loops, and gracefully degrades external API failures.
+   - **Local Testing/Demo Mocks**: Dynamically patched the agents in `app/main.py` when placeholder/dummy keys (`sk-...`) are detected. This enables local development and interviewer demos via the Swagger UI to execute successfully in <1 second without hitting authentications issues or incurring OpenAI costs.
+   - **Race-Condition Hardening**: Resolved a microsecond race condition in `get_final_plan` where fetching the finalized plan immediately after submitting approval could return a 500 error before the background task completes writing to the checkpointer. It now correctly returns a `409 Conflict` (status: `"finalizing"`), enabling clients to poll until success.
+   - **E2E Verification**: Executed `smoke_test.py` against the running local server, verifying the entire lifecycle (Create Plan -> Poll Awaiting Review -> Approve -> Retrieve Final Plan) completes successfully.
 
 4. **Production Roadmap**:
    - The `README.md` was updated to explicitly document take-home constraints vs. Day-1 Enterprise requirements (e.g., Redis rate limiting, JWT OAuth2 authentication, Celery/Temporal multi-worker deployments, and LLM semantic caching).

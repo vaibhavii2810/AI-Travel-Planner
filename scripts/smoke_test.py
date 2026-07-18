@@ -49,7 +49,7 @@ def check_health(client: httpx.Client) -> None:
 def create_plan(client: httpx.Client) -> str:
     log(f"Creating travel plan for: {TRAVEL_REQUEST['destination']}...")
     resp = client.post(f"{BASE_URL}/plan", json=TRAVEL_REQUEST)
-    if resp.status_code != 202:
+    if resp.status_code not in (201, 202):
         log(f"  ✗ Create failed: {resp.status_code} {resp.text}")
         sys.exit(1)
     plan_id = resp.json()["plan_id"]

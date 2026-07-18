@@ -203,7 +203,7 @@ class PlanningService:
         final_itinerary = sv.get("final_itinerary")
 
         if not final_itinerary:
-            raise GraphExecutionError(f"Final itinerary missing from checkpoint for plan {plan_id}")
+            raise PlanNotFinalizedError(plan_id=plan_id, current_status="finalizing")
 
         return FinalPlanResponse(
             plan_id=plan_id,

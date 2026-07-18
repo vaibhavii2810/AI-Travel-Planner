@@ -44,6 +44,130 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION} | env={settings.ENV}")
 
     # ② Checkpointer — setup() runs here, tables created before first request (Risk 2 bypass)
+    # Check if we are running with default placeholder API keys and patch agents for easy local manual testing/demos
+    if settings.OPENAI_API_KEY.get_secret_value() == "sk-..." or "placeholder" in settings.OPENAI_API_KEY.get_secret_value():
+        logger.warning("Default/placeholder OpenAI API key detected. Patching agents with mock implementations for local testing.")
+        
+        import app.agents.research_agent as ra_mod
+        import app.agents.planner_agent as pa_mod
+        import app.graph.nodes.research_node as rn_mod
+        import app.graph.nodes.planner_node as pn_mod
+        from app.models.domain import ResearchOutput, Attraction, WeatherSummary, DraftItinerary, DailyPlan, Activity, BudgetAllocation
+        from datetime import datetime, timezone, timedelta
+        
+        async def mock_invoke_research_agent(*args, **kwargs):
+            destination = kwargs.get("destination", args[0] if args else "Kyoto, Japan")
+            logger.info(f"[MOCK] invoke_research_agent called for destination={destination}")
+            return ResearchOutput(
+                attractions=[
+                    Attraction(
+                        name="Popular Attraction 1",
+                        description=f"Must-visit landmark in {destination}",
+                        category="sightseeing",
+                        estimated_visit_duration_hours=2.0,
+                        approximate_cost_per_person=15.0,
+                    ),
+                    Attraction(
+                        name="Popular Attraction 2",
+                        description="Beautiful natural park or scenic view",
+                        category="nature",
+                        estimated_visit_duration_hours=1.5,
+                        approximate_cost_per_person=0.0,
+                    ),
+                ],
+                local_tips=["Use local public transit", "Respect local customs"],
+                safety_considerations=["Stay aware in crowded areas"],
+                weather_summary=WeatherSummary(
+                    avg_temp_celsius=20.0,
+                    avg_temp_fahrenheit=68.0,
+                    conditions="Sunny",
+                    precipitation_chance_percent=10.0,
+                    humidity_percent=55.0,
+                    warnings=[],
+                    data_available=True,
+                ),
+                seasonal_notes="Great season to travel here.",
+                general_destination_info=f"Fascinating historic details about {destination}.",
+                research_sources=["https://wikipedia.org"],
+                researched_at=datetime.now(timezone.utc),
+            )
+            
+        async def mock_invoke_planner_agent(*args, **kwargs):
+            req = kwargs.get("travel_request", args[0] if args else None)
+            revision_count = kwargs.get("revision_count", args[2] if len(args) > 2 else 0)
+            
+            logger.info(f"[MOCK] invoke_planner_agent called for version {revision_count + 1}")
+            
+            daily_plans = []
+            current_date = req.start_date
+            day_num = 1
+            while current_date <= req.end_date:
+                daily_plans.append(
+                    DailyPlan(
+                        day_number=day_num,
+                        date=current_date,
+                        theme="Explore & Enjoy",
+                        morning=[
+                            Activity(
+                                name="Morning Exploration",
+                                description="Start the day visiting key landmarks",
+                                location=req.destination,
+                                duration_minutes=120,
+                                estimated_cost_per_person=10.0,
+                            )
+                        ],
+                        afternoon=[
+                            Activity(
+                                name="Local Dining & Shopping",
+                                description="Taste local food and check out market stalls",
+                                location=req.destination,
+                                duration_minutes=90,
+                                estimated_cost_per_person=20.0,
+                            )
+                        ],
+                        evening=[
+                            Activity(
+                                name="Relaxing Evening Stroll",
+                                description="Unwind at a local park or cafe",
+                                location=req.destination,
+                                duration_minutes=90,
+                                estimated_cost_per_person=0.0,
+                            )
+                        ],
+                        accommodation="Recommended Local Hotel",
+                        estimated_daily_cost_per_person=120.0,
+                        travel_notes="Walk or take short taxi rides",
+                    )
+                )
+                current_date += timedelta(days=1)
+                day_num += 1
+                
+            total_cost = len(daily_plans) * 150.0
+            
+            return DraftItinerary(
+                version=revision_count + 1,
+                daily_plans=daily_plans,
+                budget_allocation=BudgetAllocation(
+                    accommodation_total=total_cost * 0.4,
+                    transport_total=total_cost * 0.2,
+                    food_total=total_cost * 0.25,
+                    activities_total=total_cost * 0.1,
+                    contingency_total=total_cost * 0.05,
+                    grand_total=total_cost,
+                    per_person_total=total_cost / max(req.num_travelers, 1),
+                    currency=req.budget_currency,
+                    within_budget=total_cost <= req.budget_max,
+                ),
+                overall_tips=["Have local cash handy"],
+                packing_suggestions=["Comfortable shoes", "Adapters for electronics"],
+                generated_at=datetime.now(timezone.utc),
+            )
+            
+        ra_mod.invoke_research_agent = mock_invoke_research_agent
+        rn_mod.invoke_research_agent = mock_invoke_research_agent
+        pa_mod.invoke_planner_agent = mock_invoke_planner_agent
+        pn_mod.invoke_planner_agent = mock_invoke_planner_agent
+
     async with build_checkpointer(settings) as checkpointer:
         logger.info(f"Checkpointer ready: {type(checkpointer).__name__}")
 
