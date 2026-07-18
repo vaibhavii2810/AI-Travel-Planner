@@ -84,10 +84,12 @@ export function PlanPage() {
 
   const itinerary       = plan.draft_itinerary ?? plan.final_itinerary;
   const currency        = plan.travel_request?.budget_currency ?? 'USD';
+  const isRevising       = plan.status === 'revising';
   const isProcessing    = ['queued', 'researching', 'planning', 'revising'].includes(plan.status);
   const isAwaitingReview = plan.status === 'awaiting_review';
   const isFinalized      = plan.status === 'finalized';
   const isError          = plan.status === 'error' || plan.status === 'max_revisions_exceeded';
+  // While revising, keep showing old itinerary as a ghost behind the loading overlay
   const displayItinerary = isFinalized ? (finalPlan?.final_itinerary ?? itinerary) : itinerary;
 
   const statusMsg = STATUS_MESSAGES[plan.status];
@@ -104,23 +106,28 @@ export function PlanPage() {
           <WorkflowStepper status={plan.status} />
         </div>
 
-        {/* Processing state */}
+        {/* Processing / Revising state — full-page loading panel */}
         {isProcessing && (
           <div style={{
             background: 'var(--bg-card)', border: '1px solid var(--accent-border)',
-            borderRadius: '16px', padding: '40px 24px',
+            borderRadius: '16px', padding: '60px 24px',
             marginBottom: '20px', textAlign: 'center',
           }} className="animate-fade-in">
-            <div style={{ fontSize: '36px', marginBottom: '16px' }}>
+            <div style={{ fontSize: '44px', marginBottom: '20px' }}>
               {statusMsg?.icon ?? '⚙️'}
             </div>
-            <LoadingSpinner size="md" style={{ color: 'var(--accent)', margin: '0 auto 16px' }} />
-            <h2 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
+            <LoadingSpinner size="md" style={{ color: 'var(--accent)', margin: '0 auto 20px' }} />
+            <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
               {statusMsg?.heading ?? 'Processing…'}
             </h2>
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '400px', margin: '0 auto' }}>
+            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', maxWidth: '440px', margin: '0 auto 0' }}>
               {statusMsg?.sub ?? 'Please wait.'}
             </p>
+            {isRevising && (
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '12px' }}>
+                This usually takes 5–15 seconds. The updated plan will appear automatically.
+              </p>
+            )}
           </div>
         )}
 
@@ -145,8 +152,8 @@ export function PlanPage() {
         {/* Plan summary */}
         {plan && <div style={{ marginBottom: '20px' }}><PlanSummary plan={plan} /></div>}
 
-        {/* HITL Review panel */}
-        {isAwaitingReview && (
+        {/* HITL Review panel — only shown when truly awaiting review, not while revising */}
+        {isAwaitingReview && !isRevising && (
           <div style={{ marginBottom: '20px' }}>
             <ReviewActions
               loading={reviewLoading}
@@ -200,8 +207,8 @@ export function PlanPage() {
 
 
 
-        {/* Itinerary + budget */}
-        {displayItinerary && (
+        {/* Itinerary + budget — hidden while revising so the loading screen has full focus */}
+        {displayItinerary && !isRevising && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '24px', alignItems: 'start' }}>
             <div>
               <p style={{
@@ -234,18 +241,17 @@ export function PlanPage() {
           <div style={{ marginTop: '24px' }}><ItinerarySkeleton /></div>
         )}
 
-        {/* Success toast */}
+        {/* Success toast — perfectly centered via position + translate */}
         {toastMsg && (
           <div style={{
-            position: 'fixed', bottom: '28px',
-            left: 0, right: 0, margin: '0 auto',
-            width: 'max-content', maxWidth: 'calc(100vw - 48px)',
-            padding: '12px 20px', zIndex: 9999,
+            position: 'fixed', bottom: '32px',
+            left: '50%', transform: 'translateX(-50%)',
+            padding: '13px 22px', zIndex: 9999,
             background: 'var(--accent)',
-            borderRadius: '99px', boxShadow: '0 4px 24px rgba(34,197,94,0.35)',
-            fontSize: '13px', fontWeight: 700, color: '#000',
-            display: 'flex', alignItems: 'center', gap: '8px',
-            whiteSpace: 'nowrap',
+            borderRadius: '99px', boxShadow: '0 4px 28px rgba(34,197,94,0.4)',
+            fontSize: '14px', fontWeight: 700, color: '#000',
+            display: 'inline-flex', alignItems: 'center', gap: '8px',
+            whiteSpace: 'nowrap', userSelect: 'none',
           }} className="animate-slide-up" role="alert">
             <CheckCircle size={16} />
             {toastMsg}

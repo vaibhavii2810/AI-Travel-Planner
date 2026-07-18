@@ -396,19 +396,20 @@ async def lifespan(app: FastAPI):
             rejection_feedback = kwargs.get("rejection_feedback")
             modification_request = kwargs.get("modification_request")
 
-            # Artificially alter the first day if this is a revision so the user sees a visible change!
+            # Artificially alter the plan if this is a revision so the user sees a visible change!
             if revision_count > 0 and (rejection_feedback or modification_request):
                 feedback_text = rejection_feedback or (modification_request.get("instructions") if modification_request else "User feedback")
-                daily_plans[0].theme = "✨ Revised: " + daily_plans[0].theme
-                daily_plans[0].travel_notes = f"Updated based on your feedback: {feedback_text}"
-                daily_plans[0].afternoon.append(Activity(
-                    name=f"Custom Request Fulfilled",
-                    description=f"Added based on your feedback: {feedback_text}",
+                # Mark first day as revised and prepend a custom activity to morning slot
+                daily_plans[0].theme = "✨ Revised — " + daily_plans[0].theme
+                daily_plans[0].practical_notes = f"Updated per your feedback: \"{feedback_text[:120]}\""
+                daily_plans[0].morning.insert(0, Activity(
+                    name="Your Custom Request ✓",
+                    description=f"Adjusted based on your feedback: {feedback_text[:200]}",
                     location=req.destination,
-                    duration_minutes=60,
+                    duration_minutes=90,
                     estimated_cost_per_person=0.0,
                     booking_required=False,
-                    tips="Specially requested addition!"
+                    tips="This activity was added in response to your revision request.",
                 ))
 
             food_weight         = 0.30 if "food"      in interests else 0.22

@@ -1,14 +1,11 @@
 /**
  * usePlan — central state hook for the plan workflow.
  *
- * Responsibilities:
- * - Fetch plan state from GET /plan/{plan_id}
- * - Poll while status is in an active-processing state
- * - Expose review handlers (approve/reject/modify)
- * - Fetch final plan after approval
+ * KEY FIX: After reject/modify, we immediately force local status to 'revising'
+ * so the UI shows the loading screen right away, polling continues, and the
+ * revised plan appears automatically when the backend finishes.
  */
-import { useCallback, useState, useRef } from 'react';
-import { usePolling } from './usePolling';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import {
   getPlan,
   reviewPlan,
@@ -22,9 +19,9 @@ import type {
   ReviewRequest,
 } from '@/types/api';
 
-// Statuses where we should poll for updates
+// Statuses where we should keep polling for updates
 const POLLING_STATUSES: PlanStatus[] = ['queued', 'researching', 'planning', 'revising'];
-const POLL_INTERVAL_MS = 2500;
+const POLL_INTERVAL_MS = 2000;
 
 export interface UsePlanReturn {
   plan: PlanStatusResponse | null;
@@ -43,7 +40,8 @@ export function usePlan(planId: string | undefined): UsePlanReturn {
   const [reviewLoading, setReviewLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
 
-  // Keep a ref to current plan so polling closure always sees latest value
+  // Track whether we should keep polling — stored in a ref so interval always reads latest
+  const shouldPollRef = useRef(false);
   const planRef = useRef<PlanStatusResponse | null>(null);
   planRef.current = plan;
 
@@ -54,21 +52,27 @@ export function usePlan(planId: string | undefined): UsePlanReturn {
       setPlan(data);
       setError(null);
 
-      // If finalized, also fetch the final plan
-      if (data.status === 'finalized' && !planRef.current?.final_itinerary) {
+      // If finalized, fetch the final itinerary too
+      if (data.status === 'finalized') {
+        shouldPollRef.current = false;
         try {
           const fp = await getFinalPlan(planId);
           setFinalPlan(fp);
         } catch {
-          // Non-fatal: plan might briefly show finalized before final endpoint is ready
+          // Non-fatal — will retry on next poll
         }
+      }
+
+      // Stop polling on terminal statuses
+      if (['finalized', 'error', 'max_revisions_exceeded'].includes(data.status)) {
+        shouldPollRef.current = false;
       }
     } catch (err) {
       setError(err as ApiError);
     }
   }, [planId]);
 
-  // Initial fetch + set loading on first call
+  // Initial fetch + loading indicator
   const refetch = useCallback(async () => {
     if (!planId) return;
     setLoading(true);
@@ -76,40 +80,96 @@ export function usePlan(planId: string | undefined): UsePlanReturn {
     setLoading(false);
   }, [planId, fetchPlan]);
 
-  // Poll whenever plan is in an active processing state
-  const shouldPoll = !!planId && !!plan && POLLING_STATUSES.includes(plan.status);
-  usePolling(fetchPlan, POLL_INTERVAL_MS, shouldPoll);
+  // ── Polling engine ────────────────────────────────────────────────────────
+  // We manage the interval manually via a ref so we can start/stop it
+  // dynamically without relying on React's re-render cycle.
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const startPolling = useCallback(() => {
+    if (intervalRef.current) return; // already running
+    shouldPollRef.current = true;
+    intervalRef.current = setInterval(async () => {
+      if (!shouldPollRef.current) {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        return;
+      }
+      await fetchPlan();
+    }, POLL_INTERVAL_MS);
+  }, [fetchPlan]);
+
+  const stopPolling = useCallback(() => {
+    shouldPollRef.current = false;
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  // Auto-start polling when plan enters a processing status
+  useEffect(() => {
+    if (!plan) return;
+    if (POLLING_STATUSES.includes(plan.status)) {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+  }, [plan?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
+
+  // ── Review submission ─────────────────────────────────────────────────────
   const submitReview = useCallback(
     async (review: ReviewRequest) => {
       if (!planId) return;
       setReviewLoading(true);
       setError(null);
       try {
+        // CRITICAL FIX: Immediately force status to 'revising' in local state
+        // so the loading screen appears right now without waiting for backend.
+        if (review.action === 'reject' || review.action === 'modify') {
+          setPlan(prev => prev ? { ...prev, status: 'revising' as PlanStatus } : prev);
+          // Start polling right away — don't wait for React re-render
+          shouldPollRef.current = true;
+          startPolling();
+        }
+
+        // Submit review to backend
         await reviewPlan(planId, review);
 
-        // Immediately refetch to capture any fast status transition
-        const updated = await getPlan(planId);
-        setPlan(updated);
-
-        // If immediately finalized (approve path), fetch the final itinerary
-        if (updated.status === 'finalized') {
-          try {
-            const fp = await getFinalPlan(planId);
-            setFinalPlan(fp);
-          } catch {
-            // Will be retried on next poll cycle
+        if (review.action === 'approve') {
+          // For approve, fetch immediately and get final plan
+          const updated = await getPlan(planId);
+          setPlan(updated);
+          if (updated.status === 'finalized') {
+            try {
+              const fp = await getFinalPlan(planId);
+              setFinalPlan(fp);
+            } catch {
+              // Will retry on next poll
+            }
+          } else {
+            startPolling();
           }
         }
-        // For reject/modify paths the status will be 'revising' — polling
-        // (shouldPoll becomes true again) takes over from here automatically.
+        // For reject/modify: polling is already running — it will detect
+        // the new 'awaiting_review' status and update the UI automatically.
+
       } catch (err) {
         setError(err as ApiError);
+        // On error, restore previous state from backend
+        await fetchPlan();
+        stopPolling();
       } finally {
         setReviewLoading(false);
       }
     },
-    [planId],
+    [planId, fetchPlan, startPolling, stopPolling],
   );
 
   return { plan, finalPlan, loading, reviewLoading, error, refetch, submitReview };
