@@ -22,7 +22,7 @@ _RESEARCH_TRIGGER_KEYWORDS = frozenset({
     "information", "outdated", "accurate", "wrong area", "location",
     "facts", "verify", "check", "current", "recent", "update",
     "unsafe", "dangerous", "advisory", "warning", "festival", "event",
-    "opening", "closed", "hours",
+    "opening", "closed", "hours", "destination", "date", "dates", "month", "days"
 })
 
 
@@ -73,8 +73,20 @@ def route_after_review(state: TravelPlanState) -> str:
         return "finalize_node"
 
     elif action == "modify":
-        logger.info(f"route_after_review | plan_id={plan_id} | action=modify → planner_node")
-        return "planner_node"
+        mods = review_decision.get("modifications", {})
+        instructions = mods.get("instructions", "")
+        if _needs_re_research(instructions):
+            logger.info(
+                f"route_after_review | plan_id={plan_id} | action=modify | "
+                f"instructions trigger re-research → research_node"
+            )
+            return "research_node"
+        else:
+            logger.info(
+                f"route_after_review | plan_id={plan_id} | action=modify | "
+                f"instructions are planner-level → planner_node"
+            )
+            return "planner_node"
 
     elif action == "reject":
         if _needs_re_research(feedback):

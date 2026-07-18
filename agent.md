@@ -244,7 +244,7 @@ The final phase involved a rigorous architectural audit (simulating a Senior AI/
 3. **Personalized Mock Agents**:
    - Redesigned the mock `mock_invoke_research_agent` and `mock_invoke_planner_agent` logic in `app/main.py` to prevent static, generic placeholder data.
    - The local mock pipeline now generates highly specific itineraries based on the provided destination and selected interests (`food`, `culture`, `nightlife`, etc.).
-   - Activities, budget allocations, daily themes (e.g. *Food & Flavours*), and local tips dynamically rotate based on user requirements, enabling fully testable end-to-end personalization demos without incurring OpenAI API costs.
+   - Activities, budget allocations, daily themes (e.g. _Food & Flavours_), and local tips dynamically rotate based on user requirements, enabling fully testable end-to-end personalization demos without incurring OpenAI API costs.
 
 ---
 
@@ -276,3 +276,18 @@ The final phase involved a rigorous architectural audit (simulating a Senior AI/
 2. **Strict UI Cleanup**:
    - Stripped out placeholder pill badges (e.g., "Powered by LangGraph") from the `HomePage` to ensure the product reads exclusively as a premium travel brand rather than a technical demo.
    - Removed redundant "Revision 1" pill counters from the `ReviewActions` component and the associated banner in `PlanPage` to keep the interface minimal and distraction-free for the user.
+
+---
+
+## Phase 12: HITL Workflow Orchestration & State Synchronisation
+
+1. **Intelligent Orchestration for Modifications**:
+   - Re-architected `route_after_review` in `routing.py` so that both "Reject" and "Modify" actions utilize the `_needs_re_research()` heuristic. 
+   - Modification requests containing keywords like "destination", "dates", or "weather" now seamlessly trigger the `research_node` before reaching the `planner_node`, flawlessly executing the diagrammed orchestrated flow.
+   - Fixed a bug where `research_node` cleared `rejection_feedback` from the state, ensuring that the planner node always receives the human feedback to produce visible revisions.
+
+2. **Frontend Polling & UX Polish**:
+   - Completely rewrote the `usePlan.ts` polling hook to instantly apply the `revising` status locally upon a human feedback submission. This bypasses backend latency and instantly mounts the loading screen ("Applying your feedback...").
+   - Hid the previous itinerary draft entirely during the `revising` status on `PlanPage.tsx`, focusing the user exclusively on the full-page loading indicator.
+   - Perfectly centered the Success Toast on all viewports via `display: inline-flex` and absolute transforms.
+   - Updated the `mock_invoke_planner_agent` to visibly prove revisions by injecting a "✨ Revised" Day 1 theme and prepending the user's exact text as a morning activity, eliminating user confusion during testing.
