@@ -1,85 +1,127 @@
-import { formatCurrency } from '@/utils/format';
 import type { BudgetAllocation } from '@/types/api';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 
 interface BudgetSummaryProps {
   budget: BudgetAllocation;
-  budgetMax?: number; // from travel_request.budget_max for reference
+  budgetMax?: number;
 }
 
-interface BudgetLine {
-  label: string;
-  value: number;
-  color: string;
-}
+const ROWS = [
+  { key: 'accommodation_total', label: 'Accommodation', color: '#60a5fa' },
+  { key: 'food_total',          label: 'Food & Dining',  color: '#34d399' },
+  { key: 'activities_total',    label: 'Activities',     color: '#f59e0b' },
+  { key: 'transport_total',     label: 'Transport',      color: '#a78bfa' },
+  { key: 'contingency_total',   label: 'Contingency',    color: '#94a3b8' },
+] as const;
 
 export function BudgetSummary({ budget, budgetMax }: BudgetSummaryProps) {
-  const lines: BudgetLine[] = [
-    { label: 'Accommodation', value: budget.accommodation_total, color: 'bg-brand-500' },
-    { label: 'Food & Dining', value: budget.food_total,          color: 'bg-emerald-500' },
-    { label: 'Transportation', value: budget.transport_total,    color: 'bg-violet-500'  },
-    { label: 'Activities',     value: budget.activities_total,   color: 'bg-amber-500'   },
-    { label: 'Contingency',    value: budget.contingency_total,  color: 'bg-slate-400'   },
-  ].filter((l) => l.value > 0);
-
-  const grandTotal = budget.grand_total;
-  const reference = budgetMax ?? grandTotal;
+  const grand   = budget.grand_total ?? 0;
+  const perPerson = budget.per_person_total ?? 0;
+  const within  = budget.within_budget ?? true;
+  const currency = budget.currency ?? 'USD';
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-6 animate-fade-in">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Budget Summary</h3>
-        <div className="text-right">
-          <p className="text-2xl font-bold text-slate-900">
-            {formatCurrency(grandTotal, budget.currency)}
-          </p>
-          <p className="text-xs text-slate-400">
-            {formatCurrency(budget.per_person_total, budget.currency)}/person
-          </p>
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border)',
+      borderRadius: '16px',
+      overflow: 'hidden',
+      boxShadow: 'var(--shadow-card)',
+    }}>
+      {/* Grand total header */}
+      <div style={{
+        padding: '18px 20px',
+        borderBottom: '1px solid var(--border)',
+        background: within
+          ? 'linear-gradient(135deg, rgba(34,197,94,0.08) 0%, transparent 100%)'
+          : 'linear-gradient(135deg, rgba(248,113,113,0.08) 0%, transparent 100%)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
+            Total Budget
+          </span>
+          <span style={{
+            display: 'flex', alignItems: 'center', gap: '4px',
+            fontSize: '11px', fontWeight: 600,
+            color: within ? 'var(--accent)' : '#f87171',
+          }}>
+            {within ? <TrendingDown size={12} /> : <TrendingUp size={12} />}
+            {within ? 'Within budget' : 'Over budget'}
+          </span>
         </div>
+        <div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: '28px', color: 'var(--text-primary)', lineHeight: 1 }}>
+            {currency} {grand.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            {currency} {perPerson.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} per person
+          </div>
+        </div>
+        {budgetMax && (
+          <div style={{ marginTop: '12px' }}>
+            <div style={{
+              height: '4px', borderRadius: '2px',
+              background: 'var(--border)',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.min((grand / budgetMax) * 100, 100)}%`,
+                background: within ? 'var(--accent)' : '#f87171',
+                borderRadius: '2px',
+                transition: 'width 0.6s ease',
+              }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>0</span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                Max: {currency} {budgetMax.toLocaleString()}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Progress bars */}
-      <div className="space-y-3">
-        {lines.map(({ label, value, color }) => {
-          const pct = reference > 0 ? Math.min((value / reference) * 100, 100) : 0;
+      {/* Breakdown rows */}
+      <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {ROWS.map(({ key, label, color }) => {
+          const val = (budget as Record<string, unknown>)[key] as number ?? 0;
+          const pct = grand > 0 ? (val / grand) * 100 : 0;
           return (
-            <div key={label}>
-              <div className="flex items-center justify-between text-xs mb-1">
-                <span className="font-medium text-slate-600">{label}</span>
-                <span className="text-slate-500">{formatCurrency(value, budget.currency)}</span>
+            <div key={key}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: color, flexShrink: 0 }} />
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{label}</span>
+                </div>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  {currency} {val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </span>
               </div>
-              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-                <div
-                  className={`h-full ${color} rounded-full transition-all duration-500`}
-                  style={{ width: `${pct}%` }}
-                />
+              <div style={{ height: '3px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', width: `${pct}%`,
+                  background: color, borderRadius: '2px',
+                  transition: 'width 0.6s ease',
+                }} />
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Budget vs limit */}
-      {budgetMax !== undefined && (
-        <div className="mt-5 pt-5 border-t border-slate-50 flex items-center justify-between text-xs">
-          <span className="text-slate-400">Budget limit</span>
-          <span className="font-semibold text-slate-700">
-            {formatCurrency(budgetMax, budget.currency)}
-          </span>
-        </div>
-      )}
-
-      {/* Within budget badge */}
-      <div className={`mt-3 text-center text-xs font-semibold px-3 py-1.5 rounded-full ${
-        budget.within_budget
-          ? 'bg-emerald-50 text-emerald-700'
-          : 'bg-rose-50 text-rose-700'
-      }`}>
-        {budget.within_budget ? '✓ Within budget' : '⚠ Slightly over budget'}
-      </div>
-
+      {/* Notes */}
       {budget.notes && (
-        <p className="mt-3 text-xs text-slate-400 italic text-center">{budget.notes}</p>
+        <div style={{
+          padding: '10px 20px',
+          borderTop: '1px solid var(--border)',
+          fontSize: '11px',
+          color: 'var(--text-muted)',
+          fontStyle: 'italic',
+          lineHeight: 1.5,
+        }}>
+          {budget.notes}
+        </div>
       )}
     </div>
   );

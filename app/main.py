@@ -204,26 +204,21 @@ async def lifespan(app: FastAPI):
                 tips = ["Have local cash handy", "Keep digital copies of your documents"]
             return tips, packing
 
-        def _build_day_plan(day_num: int, date, destination: str, interests: list[str]) -> DailyPlan:
-            """Build a fully interest-driven daily plan for one day."""
-            alias_map = {"history": "culture", "outdoors": "nature", "music": "nightlife"}
-            normalised = [alias_map.get(i, i) for i in interests]
+        def _build_day_plan(
+            day_num: int,
+            date,
+            destination: str,
+            morning_slot: tuple,
+            afternoon_slot: tuple,
+            evening_slot: tuple,
+        ) -> DailyPlan:
+            """Build a daily plan from pre-assigned unique activity slots.
 
-            # Rotate which interest anchors each time-slot across the trip
-            n = len(normalised)
-            morning_interest   = normalised[(day_num - 1) % n] if n else "sightseeing"
-            afternoon_interest = normalised[(day_num) % n]     if n else "sightseeing"
-            evening_interest   = normalised[(day_num + 1) % n] if n else "sightseeing"
-
-            def _pick(interest: str, slot_index: int):
-                pool = _ATTRACTION_CATALOGUE.get(interest, _ATTRACTION_CATALOGUE["sightseeing"])
-                entry = pool[slot_index % len(pool)]
-                name, desc, cost, dur = entry
-                return name, desc, cost, int(dur * 60)
-
-            morning_name, morning_desc, morning_cost, morning_dur = _pick(morning_interest, day_num)
-            afternoon_name, afternoon_desc, afternoon_cost, afternoon_dur = _pick(afternoon_interest, day_num + 1)
-            evening_name, evening_desc, evening_cost, evening_dur = _pick(evening_interest, day_num + 2)
+            Each slot is (name, desc, cost, duration_hours, interest_category).
+            Activities are pre-assigned by mock_invoke_planner_agent from a
+            deduplicated flat pool — so no activity ever repeats across days.
+            """
+            city = destination.split(",")[0].strip()
 
             theme_labels = {
                 "food": "Food & Flavours",
@@ -235,9 +230,34 @@ async def lifespan(app: FastAPI):
                 "art": "Art & Expression",
                 "sightseeing": "City Sights",
             }
-            theme = theme_labels.get(morning_interest, "Explore & Enjoy")
 
-            daily_cost = morning_cost + afternoon_cost + evening_cost + 50.0  # 50 base for meals/transport
+            m_name, m_desc, m_cost, m_dur_h, m_cat = morning_slot
+            a_name, a_desc, a_cost, a_dur_h, a_cat = afternoon_slot
+            e_name, e_desc, e_cost, e_dur_h, e_cat = evening_slot
+
+            # Day theme is driven by the morning interest
+            theme = theme_labels.get(m_cat, "Explore & Enjoy")
+
+            morning_tips = [
+                "Best visited early — beat the queues and enjoy at your own pace.",
+                "Arrive 15 minutes before opening for a calm start to the day.",
+                "Morning light makes for great photos at this spot!",
+                "Grab breakfast nearby before you head in.",
+            ]
+            afternoon_tips = [
+                "Afternoons here are lively — embrace the local energy.",
+                "Grab a coffee or snack first to keep your energy up.",
+                "Weekday afternoons are quieter — perfect timing.",
+                "Ask staff for their personal recommendation — it's usually worth it.",
+            ]
+            evening_tips = [
+                "Book ahead — this spot fills up quickly, especially on weekends.",
+                "Arrive a little early to grab the best seat.",
+                "Dress smart-casual — the atmosphere is relaxed but stylish.",
+                "End the night here and let the vibe carry you.",
+            ]
+
+            daily_cost = round(m_cost + a_cost + e_cost + 45.0, 2)  # 45 flat for transport + misc
 
             return DailyPlan(
                 day_number=day_num,
@@ -245,41 +265,42 @@ async def lifespan(app: FastAPI):
                 theme=theme,
                 morning=[
                     Activity(
-                        name=f"{destination.split(',')[0].strip()} — {morning_name}",
-                        description=morning_desc,
+                        name=f"{city} — {m_name}",
+                        description=m_desc,
                         location=destination,
-                        duration_minutes=morning_dur,
-                        estimated_cost_per_person=morning_cost,
-                        booking_required=morning_cost > 30,
-                        tips=f"Best experienced in the morning when crowds are thin.",
+                        duration_minutes=int(m_dur_h * 60),
+                        estimated_cost_per_person=m_cost,
+                        booking_required=m_cost > 30,
+                        tips=morning_tips[day_num % len(morning_tips)],
                     )
                 ],
                 afternoon=[
                     Activity(
-                        name=f"{destination.split(',')[0].strip()} — {afternoon_name}",
-                        description=afternoon_desc,
+                        name=f"{city} — {a_name}",
+                        description=a_desc,
                         location=destination,
-                        duration_minutes=afternoon_dur,
-                        estimated_cost_per_person=afternoon_cost,
-                        booking_required=afternoon_cost > 40,
-                        tips=f"Grab a coffee first — afternoons can be energetic here!",
+                        duration_minutes=int(a_dur_h * 60),
+                        estimated_cost_per_person=a_cost,
+                        booking_required=a_cost > 40,
+                        tips=afternoon_tips[day_num % len(afternoon_tips)],
                     )
                 ],
                 evening=[
                     Activity(
-                        name=f"{destination.split(',')[0].strip()} — {evening_name}",
-                        description=evening_desc,
+                        name=f"{city} — {e_name}",
+                        description=e_desc,
                         location=destination,
-                        duration_minutes=evening_dur,
-                        estimated_cost_per_person=evening_cost,
-                        booking_required=evening_cost > 25,
-                        tips=f"Reserve your spot in advance — popular among tourists and locals alike.",
+                        duration_minutes=int(e_dur_h * 60),
+                        estimated_cost_per_person=e_cost,
+                        booking_required=e_cost > 25,
+                        tips=evening_tips[day_num % len(evening_tips)],
                     )
                 ],
                 accommodation="Centrally located boutique hotel",
-                estimated_daily_cost_per_person=round(daily_cost, 2),
+                estimated_daily_cost_per_person=daily_cost,
                 travel_notes=f"Day {day_num}: {theme}. Use public transport or ride-share for easy city navigation.",
             )
+
 
         async def mock_invoke_research_agent(*args, **kwargs):
             destination = kwargs.get("destination", args[0] if args else "Kyoto, Japan")
@@ -326,30 +347,60 @@ async def lifespan(app: FastAPI):
         async def mock_invoke_planner_agent(*args, **kwargs):
             req = kwargs.get("travel_request", args[0] if args else None)
             revision_count = kwargs.get("revision_count", args[2] if len(args) > 2 else 0)
-            logger.info(f"[MOCK] invoke_planner_agent called | destination={req.destination} | interests={req.interests} | version={revision_count + 1}")
+            logger.info(f"[MOCK] invoke_planner_agent | destination={req.destination} | interests={req.interests} | v={revision_count + 1}")
 
-            interests = req.interests if req.interests else ["sightseeing"]
+            alias_map = {"history": "culture", "outdoors": "nature", "music": "nightlife"}
+            interests = [alias_map.get(i, i) for i in (req.interests or ["sightseeing"])]
+
+            # Build a flat, deduplicated activity pool across all selected interests.
+            # Each entry: (name, desc, cost, duration_hours, category)
+            flat_pool: list[tuple] = []
+            seen_names: set[str] = set()
+            for cat in interests:
+                for (name, desc, cost, hours) in _ATTRACTION_CATALOGUE.get(cat, []):
+                    if name not in seen_names:
+                        flat_pool.append((name, desc, cost, hours, cat))
+                        seen_names.add(name)
+            # Fall back to sightseeing if pool is empty
+            if not flat_pool:
+                for (name, desc, cost, hours) in _ATTRACTION_CATALOGUE["sightseeing"]:
+                    flat_pool.append((name, desc, cost, hours, "sightseeing"))
+
+            # If the trip is longer than the pool, cycle back but ensure each day
+            # still has 3 distinct activities (morning ≠ afternoon ≠ evening).
+            # We achieve this by extending the pool with shuffled copies.
+            import itertools
+            num_days = (req.end_date - req.start_date).days + 1
+            needed = num_days * 3
+            while len(flat_pool) < needed:
+                flat_pool = flat_pool + flat_pool  # double it until large enough
+            # Assign slots sequentially — no activity shares a day slot
+            slot_cursor = 0
 
             daily_plans = []
             current_date = req.start_date
             day_num = 1
             while current_date <= req.end_date:
-                daily_plans.append(_build_day_plan(day_num, current_date, req.destination, interests))
+                morning_slot   = flat_pool[slot_cursor % len(flat_pool)]; slot_cursor += 1
+                afternoon_slot = flat_pool[slot_cursor % len(flat_pool)]; slot_cursor += 1
+                evening_slot   = flat_pool[slot_cursor % len(flat_pool)]; slot_cursor += 1
+                daily_plans.append(
+                    _build_day_plan(day_num, current_date, req.destination, morning_slot, afternoon_slot, evening_slot)
+                )
                 current_date += timedelta(days=1)
                 day_num += 1
 
             total_days = len(daily_plans)
             total_cost = sum(p.estimated_daily_cost_per_person for p in daily_plans) * req.num_travelers
 
-            # Shift budget splits based on interests
-            food_weight = 0.30 if "food" in interests else 0.22
-            nightlife_weight = 0.12 if "nightlife" in interests else 0.05
-            activities_weight = 0.15 if any(i in interests for i in ["adventure", "culture", "art"]) else 0.10
+            food_weight         = 0.30 if "food"      in interests else 0.22
+            nightlife_weight    = 0.12 if "nightlife" in interests else 0.05
+            activities_weight   = 0.15 if any(i in interests for i in ["adventure", "culture", "art"]) else 0.10
             accommodation_weight = 0.35
-            transport_weight = 0.10
-            contingency_weight = max(0.03, 1.0 - food_weight - nightlife_weight - activities_weight - accommodation_weight - transport_weight)
+            transport_weight    = 0.10
+            contingency_weight  = max(0.03, 1.0 - food_weight - nightlife_weight - activities_weight - accommodation_weight - transport_weight)
 
-            overall_tips, packing = _interest_tips_and_packing(interests)
+            overall_tips, packing = _interest_tips_and_packing(req.interests or [])
 
             return DraftItinerary(
                 version=revision_count + 1,
@@ -370,7 +421,7 @@ async def lifespan(app: FastAPI):
                 packing_suggestions=packing,
                 generated_at=datetime.now(timezone.utc),
             )
-            
+
         ra_mod.invoke_research_agent = mock_invoke_research_agent
         rn_mod.invoke_research_agent = mock_invoke_research_agent
         pa_mod.invoke_planner_agent = mock_invoke_planner_agent

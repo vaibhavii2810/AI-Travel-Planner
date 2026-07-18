@@ -83,4 +83,7 @@ Thumbs.db
 # Project database / checkpointer files
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 *.sqlite
+

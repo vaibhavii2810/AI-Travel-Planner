@@ -1,20 +1,26 @@
 interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg';
-  className?: string;
+  style?: React.CSSProperties;
 }
 
-const SIZES = {
-  sm: 'w-4 h-4 border-2',
-  md: 'w-6 h-6 border-2',
-  lg: 'w-8 h-8 border-[3px]',
-};
+const SIZE_MAP = { sm: 16, md: 24, lg: 36 };
 
-export function LoadingSpinner({ size = 'md', className = '' }: LoadingSpinnerProps) {
+export function LoadingSpinner({ size = 'md', style }: LoadingSpinnerProps) {
+  const px = SIZE_MAP[size];
   return (
-    <span
+    <div
+      style={{
+        width: px, height: px,
+        borderRadius: '50%',
+        border: `${size === 'lg' ? 3 : 2}px solid var(--border)`,
+        borderTopColor: 'var(--accent)',
+        animation: 'spin 0.8s linear infinite',
+        display: 'inline-block',
+        flexShrink: 0,
+        ...style,
+      }}
       role="status"
       aria-label="Loading"
-      className={`inline-block rounded-full border-current border-t-transparent animate-spin ${SIZES[size]} ${className}`}
     />
   );
 }

@@ -1,163 +1,101 @@
-import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
-import type { PlanStatus } from '@/types/api';
+import { CheckCircle, Circle, Loader } from 'lucide-react';
 
-interface Step {
-  id: PlanStatus[];
-  label: string;
-  description: string;
-}
-
-const STEPS: Step[] = [
-  {
-    id: ['queued'],
-    label: 'Request Received',
-    description: 'Your travel request has been submitted.',
-  },
-  {
-    id: ['researching'],
-    label: 'Researching Destination',
-    description: 'AI agents are gathering insights about your destination.',
-  },
-  {
-    id: ['planning'],
-    label: 'Building Itinerary',
-    description: 'Creating your personalized day-by-day plan.',
-  },
-  {
-    id: ['awaiting_review', 'revising'],
-    label: 'Awaiting Your Review',
-    description: 'Your draft itinerary is ready for review.',
-  },
-  {
-    id: ['finalized'],
-    label: 'Finalized',
-    description: 'Your trip has been approved and is ready!',
-  },
+const STEPS = [
+  { key: 'researching',     label: 'Research' },
+  { key: 'planning',        label: 'Planning' },
+  { key: 'awaiting_review', label: 'Your Review' },
+  { key: 'finalized',       label: 'Finalised' },
 ];
 
-function getStepIndex(status: PlanStatus): number {
-  for (let i = 0; i < STEPS.length; i++) {
-    if (STEPS[i].id.includes(status)) return i;
-  }
-  // Error states — map to last completed
-  return 0;
-}
+const STATUS_ORDER: Record<string, number> = {
+  queued:                0,
+  researching:           1,
+  planning:              2,
+  revising:              2,
+  awaiting_review:       3,
+  finalized:             4,
+  error:                 -1,
+  max_revisions_exceeded:-1,
+};
 
-type StepState = 'completed' | 'active' | 'upcoming';
-
-function getStepState(stepIndex: number, currentIndex: number): StepState {
-  if (stepIndex < currentIndex) return 'completed';
-  if (stepIndex === currentIndex) return 'active';
-  return 'upcoming';
-}
-
-interface WorkflowStepperProps {
-  status: PlanStatus;
-}
-
-export function WorkflowStepper({ status }: WorkflowStepperProps) {
-  const currentIndex = getStepIndex(status);
-  const isProcessing = ['researching', 'planning', 'revising', 'queued'].includes(status);
+export function WorkflowStepper({ status }: { status: string }) {
+  const current = STATUS_ORDER[status] ?? 0;
+  const isError = status === 'error' || status === 'max_revisions_exceeded';
+  const isActive = (idx: number) => current === idx + 1;
+  const isDone   = (idx: number) => current > idx + 1;
 
   return (
-    <div className="w-full" role="navigation" aria-label="Workflow progress">
-      {/* Desktop: horizontal */}
-      <div className="hidden md:flex items-start justify-between relative">
-        {/* Connector line */}
-        <div className="absolute top-4 left-8 right-8 h-px bg-slate-200" aria-hidden="true" />
-
-        {STEPS.map((step, idx) => {
-          const state = getStepState(idx, currentIndex);
-          const isCurrent = state === 'active';
-          const isCompleted = state === 'completed';
+    <div>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '0',
+        overflowX: 'auto',
+        paddingBottom: '2px',
+      }}>
+        {STEPS.map((step, i) => {
+          const done   = isDone(i);
+          const active = isActive(i);
+          const upcoming = !done && !active;
 
           return (
-            <div
-              key={step.label}
-              className="relative flex flex-col items-center flex-1 min-w-0 px-2"
-            >
-              {/* Step icon */}
-              <div
-                className={`relative z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300 ${
-                  isCompleted
-                    ? 'bg-brand-600 border-brand-600'
-                    : isCurrent
-                    ? 'bg-white border-brand-600'
-                    : 'bg-white border-slate-200'
-                }`}
-                aria-current={isCurrent ? 'step' : undefined}
-              >
-                {isCompleted ? (
-                  <CheckCircle2 className="w-4 h-4 text-white" aria-hidden="true" />
-                ) : isCurrent && isProcessing ? (
-                  <Loader2 className="w-4 h-4 text-brand-600 animate-spin" aria-hidden="true" />
-                ) : isCurrent ? (
-                  <span className="w-2 h-2 rounded-full bg-brand-600" aria-hidden="true" />
-                ) : (
-                  <Circle className="w-4 h-4 text-slate-300" aria-hidden="true" />
-                )}
+            <div key={step.key} style={{ display: 'flex', alignItems: 'center', flex: i < STEPS.length - 1 ? 1 : undefined }}>
+              {/* Step node */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', minWidth: '72px' }}>
+                <div style={{
+                  width: '32px', height: '32px', borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: done ? 'var(--accent)' : active ? 'var(--accent-glow)' : 'var(--bg-surface)',
+                  border: `2px solid ${done ? 'var(--accent)' : active ? 'var(--accent)' : 'var(--border)'}`,
+                  boxShadow: active ? '0 0 0 4px var(--accent-glow)' : undefined,
+                  transition: 'all 0.3s ease',
+                  flexShrink: 0,
+                }}>
+                  {done ? (
+                    <CheckCircle size={14} color="#000" strokeWidth={3} />
+                  ) : active ? (
+                    <Loader size={14} color="var(--accent)" strokeWidth={2.5} style={{ animation: 'spin 1.2s linear infinite' }} />
+                  ) : (
+                    <Circle size={14} color="var(--text-muted)" strokeWidth={1.5} />
+                  )}
+                </div>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: active ? 700 : done ? 600 : 400,
+                  color: done ? 'var(--accent)' : active ? 'var(--text-primary)' : 'var(--text-muted)',
+                  whiteSpace: 'nowrap',
+                  textAlign: 'center',
+                }}>
+                  {step.label}
+                </span>
               </div>
 
-              {/* Labels */}
-              <div className="mt-3 text-center">
-                <p
-                  className={`text-xs font-semibold leading-tight ${
-                    isCompleted || isCurrent ? 'text-slate-800' : 'text-slate-400'
-                  }`}
-                >
-                  {step.label}
-                </p>
-                {isCurrent && (
-                  <p className="text-[11px] text-brand-600 mt-0.5 leading-tight max-w-[120px] mx-auto">
-                    {step.description}
-                  </p>
-                )}
-              </div>
+              {/* Connector line */}
+              {i < STEPS.length - 1 && (
+                <div style={{
+                  flex: 1,
+                  height: '2px',
+                  marginBottom: '18px',
+                  background: done
+                    ? 'linear-gradient(90deg, var(--accent) 0%, var(--accent-dim) 100%)'
+                    : 'var(--border)',
+                  borderRadius: '1px',
+                  transition: 'background 0.4s ease',
+                  minWidth: '24px',
+                }} />
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* Mobile: vertical */}
-      <div className="md:hidden space-y-3">
-        {STEPS.map((step, idx) => {
-          const state = getStepState(idx, currentIndex);
-          const isCurrent = state === 'active';
-          const isCompleted = state === 'completed';
-
-          return (
-            <div key={step.label} className="flex items-start gap-3">
-              <div
-                className={`flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-full border-2 mt-0.5 ${
-                  isCompleted
-                    ? 'bg-brand-600 border-brand-600'
-                    : isCurrent
-                    ? 'bg-white border-brand-600'
-                    : 'bg-white border-slate-200'
-                }`}
-              >
-                {isCompleted ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-white" aria-hidden="true" />
-                ) : isCurrent && isProcessing ? (
-                  <Loader2 className="w-3.5 h-3.5 text-brand-600 animate-spin" aria-hidden="true" />
-                ) : isCurrent ? (
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand-600" />
-                ) : (
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                )}
-              </div>
-              <div>
-                <p className={`text-sm font-semibold ${isCompleted || isCurrent ? 'text-slate-800' : 'text-slate-400'}`}>
-                  {step.label}
-                </p>
-                {isCurrent && (
-                  <p className="text-xs text-brand-600 mt-0.5">{step.description}</p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {isError && (
+        <p style={{
+          marginTop: '12px', padding: '8px 14px',
+          background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)',
+          borderRadius: '8px', fontSize: '12px', color: '#f87171',
+        }}>
+          ⚠️ Workflow error — {status === 'max_revisions_exceeded' ? 'maximum revisions reached' : 'an unexpected error occurred'}.
+        </p>
+      )}
     </div>
   );
 }

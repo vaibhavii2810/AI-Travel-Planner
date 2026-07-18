@@ -1,86 +1,128 @@
 import { CheckCircle, XCircle, Edit3 } from 'lucide-react';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 interface ReviewActionsProps {
   loading: boolean;
   onApprove: () => void;
   onReject: () => void;
   onModify: () => void;
-  revisionCount?: number;
+  revisionCount: number;
 }
 
-export function ReviewActions({
-  loading,
-  onApprove,
-  onReject,
-  onModify,
-  revisionCount = 0,
-}: ReviewActionsProps) {
+export function ReviewActions({ loading, onApprove, onReject, onModify, revisionCount }: ReviewActionsProps) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-6 animate-slide-up">
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--accent-border)',
+      borderRadius: '16px',
+      overflow: 'hidden',
+      boxShadow: '0 0 24px var(--accent-glow)',
+    }}>
       {/* Header */}
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-50 mb-3">
-          <span className="text-2xl" aria-hidden="true">✈️</span>
+      <div style={{
+        padding: '16px 24px',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div>
+          <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: '16px', color: 'var(--text-primary)', marginBottom: '3px' }}>
+            Review Your Plan
+          </h3>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+            Scroll through the itinerary below, then approve, request changes, or reject.
+          </p>
         </div>
-        <h2 className="text-lg font-bold text-slate-900">Review Your AI-Generated Trip</h2>
-        <p className="text-sm text-slate-500 mt-1">
-          Your personalized itinerary is ready.{' '}
-          {revisionCount > 0 && (
-            <span className="text-brand-600 font-medium">
-              Revision {revisionCount} — 
-            </span>
-          )}
-          {' '}What would you like to do?
-        </p>
+        {revisionCount > 0 && (
+          <span style={{
+            padding: '4px 12px', borderRadius: '99px', fontSize: '11px', fontWeight: 600,
+            background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)',
+            color: '#fbbf24',
+          }}>
+            Revision {revisionCount}
+          </span>
+        )}
       </div>
 
-      {/* Action buttons */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* Actions */}
+      <div style={{ padding: '16px 24px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
         {/* Approve */}
         <button
-          id="approve-plan-btn"
           onClick={onApprove}
           disabled={loading}
-          className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-          aria-label="Approve plan and finalize itinerary"
+          style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            padding: '11px 22px',
+            borderRadius: '10px',
+            background: 'var(--accent)',
+            border: '1px solid var(--accent)',
+            color: '#000',
+            fontSize: '14px', fontWeight: 700,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.6 : 1,
+            transition: 'all 0.15s',
+            boxShadow: '0 0 16px var(--accent-glow)',
+          }}
+          onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.boxShadow = '0 0 28px rgba(34,197,94,0.4)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 0 16px var(--accent-glow)'; }}
         >
-          {loading ? (
-            <LoadingSpinner size="sm" className="text-white" />
-          ) : (
-            <CheckCircle className="w-6 h-6" aria-hidden="true" />
-          )}
-          <span className="text-sm">Approve Plan</span>
-        </button>
-
-        {/* Reject */}
-        <button
-          id="reject-plan-btn"
-          onClick={onReject}
-          disabled={loading}
-          className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl border-2 border-red-200 text-red-600 font-semibold hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2"
-          aria-label="Reject plan and provide feedback for revision"
-        >
-          <XCircle className="w-6 h-6" aria-hidden="true" />
-          <span className="text-sm">Reject & Revise</span>
+          <CheckCircle size={16} /> Approve Plan
         </button>
 
         {/* Modify */}
         <button
-          id="modify-plan-btn"
           onClick={onModify}
           disabled={loading}
-          className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl border-2 border-brand-200 text-brand-600 font-semibold hover:bg-brand-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
-          aria-label="Request specific modifications to the plan"
+          style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            padding: '11px 22px',
+            borderRadius: '10px',
+            background: 'transparent',
+            border: '1px solid var(--border)',
+            color: 'var(--text-primary)',
+            fontSize: '14px', fontWeight: 600,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.6 : 1,
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { if (!loading) {
+            (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-hover)';
+            (e.currentTarget as HTMLElement).style.background = 'var(--bg-card-hover)';
+          }}}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
+            (e.currentTarget as HTMLElement).style.background = 'transparent';
+          }}
         >
-          <Edit3 className="w-6 h-6" aria-hidden="true" />
-          <span className="text-sm">Modify Plan</span>
+          <Edit3 size={16} /> Modify
+        </button>
+
+        {/* Reject */}
+        <button
+          onClick={onReject}
+          disabled={loading}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            padding: '11px 22px',
+            borderRadius: '10px',
+            background: 'transparent',
+            border: '1px solid rgba(248,113,113,0.3)',
+            color: '#f87171',
+            fontSize: '14px', fontWeight: 600,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.6 : 1,
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { if (!loading) {
+            (e.currentTarget as HTMLElement).style.borderColor = 'rgba(248,113,113,0.55)';
+            (e.currentTarget as HTMLElement).style.background = 'rgba(248,113,113,0.06)';
+          }}}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.borderColor = 'rgba(248,113,113,0.3)';
+            (e.currentTarget as HTMLElement).style.background = 'transparent';
+          }}
+        >
+          <XCircle size={16} /> Reject
         </button>
       </div>
-
-      <p className="text-center text-xs text-slate-400 mt-4">
-        All actions interact with the live AI planning workflow.
-      </p>
     </div>
   );
 }
