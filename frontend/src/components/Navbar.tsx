@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Sun, Moon, Compass } from 'lucide-react';
-import { useTheme } from '@/App';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface NavbarProps {
   showBack?: boolean;
@@ -10,7 +10,7 @@ interface NavbarProps {
   rightSlot?: React.ReactNode;
 }
 
-export function Navbar({ showBack, planId, onCopyId, copied, rightSlot }: NavbarProps) {
+export function Navbar({ showBack, planId: _planId, onCopyId: _onCopyId, copied: _copied, rightSlot }: NavbarProps) {
   const { theme, toggle } = useTheme();
 
   return (

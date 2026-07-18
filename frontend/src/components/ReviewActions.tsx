@@ -8,7 +8,7 @@ interface ReviewActionsProps {
   revisionCount: number;
 }
 
-export function ReviewActions({ loading, onApprove, onReject, onModify, revisionCount }: ReviewActionsProps) {
+export function ReviewActions({ loading, onApprove, onReject, onModify, revisionCount: _revisionCount }: ReviewActionsProps) {
   return (
     <div style={{
       background: 'var(--bg-card)',

@@ -85,7 +85,7 @@ export function BudgetSummary({ budget, budgetMax }: BudgetSummaryProps) {
       {/* Breakdown rows */}
       <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {ROWS.map(({ key, label, color }) => {
-          const val = (budget as Record<string, unknown>)[key] as number ?? 0;
+          const val = (budget as unknown as Record<string, number>)[key] ?? 0;
           const pct = grand > 0 ? (val / grand) * 100 : 0;
           return (
             <div key={key}>

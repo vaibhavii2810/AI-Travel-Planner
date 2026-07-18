@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CheckCircle, Printer, Copy } from 'lucide-react';
+import { CheckCircle, Printer } from 'lucide-react';
 import { WorkflowStepper } from '@/components/WorkflowStepper';
 import { PlanSummary } from '@/components/PlanSummary';
 import { ItineraryTimeline } from '@/components/ItineraryTimeline';
@@ -274,7 +274,7 @@ export function PlanPage() {
             fontSize: '13px', color: '#f87171',
           }} className="animate-slide-up" role="alert">
             <span style={{ fontWeight: 600 }}>Action failed: </span>
-            {typeof error === 'string' ? error : (error as Error).message}
+            {typeof error === 'string' ? error : (error as unknown as Error).message}
           </div>
         )}
       </Shell>

@@ -35,7 +35,6 @@ export function WorkflowStepper({ status }: { status: string }) {
         {STEPS.map((step, i) => {
           const done   = isDone(i);
           const active = isActive(i);
-          const upcoming = !done && !active;
 
           return (
             <div key={step.key} style={{ display: 'flex', alignItems: 'center', flex: i < STEPS.length - 1 ? 1 : undefined }}>

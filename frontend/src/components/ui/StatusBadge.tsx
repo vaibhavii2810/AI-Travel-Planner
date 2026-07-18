@@ -13,6 +13,7 @@ const CONFIG: Record<
   finalized:            { label: 'Approved & Finalized', className: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' },
   error:                { label: 'Error',               className: 'bg-red-50 text-red-700 ring-1 ring-red-200' },
   max_revisions_exceeded: { label: 'Max Revisions',    className: 'bg-rose-50 text-rose-700 ring-1 ring-rose-200' },
+  rejected:               { label: 'Rejected',           className: 'bg-red-100 text-red-800 ring-1 ring-red-300' },
 };
 
 interface StatusBadgeProps {

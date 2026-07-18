@@ -100,7 +100,7 @@ export function DayCard({ day, currency }: DayCardProps) {
       {/* Slots */}
       <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {SLOT_CONFIG.map(({ key, label, icon: Icon, color }) => {
-          const activities = (day as Record<string, unknown>)[key] as typeof day.morning;
+          const activities = (day as unknown as Record<string, unknown>)[key] as typeof day.morning;
           if (!activities?.length) return null;
           return (
             <div key={key}>
@@ -148,7 +148,7 @@ export function DayCard({ day, currency }: DayCardProps) {
         )}
 
         {/* Travel notes */}
-        {(day.practical_notes || (day as Record<string, unknown>).travel_notes) && (
+        {(day.practical_notes || (day as unknown as Record<string, string>).travel_notes) && (
           <p style={{
             fontSize: '12px',
             color: 'var(--text-muted)',
@@ -158,7 +158,7 @@ export function DayCard({ day, currency }: DayCardProps) {
             paddingTop: '12px',
             marginTop: '4px',
           }}>
-            💡 {day.practical_notes || (day as Record<string, unknown>).travel_notes as string}
+            💡 {day.practical_notes || (day as unknown as Record<string, string>).travel_notes}
           </p>
         )}
       </div>

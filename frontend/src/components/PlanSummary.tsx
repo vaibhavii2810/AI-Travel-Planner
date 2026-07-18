@@ -1,7 +1,7 @@
 import { MapPin, Calendar, Users, DollarSign, Tag } from 'lucide-react';
-import type { TravelPlan } from '@/types/api';
+import type { PlanStatusResponse } from '@/types/api';
 
-interface PlanSummaryProps { plan: TravelPlan }
+interface PlanSummaryProps { plan: PlanStatusResponse }
 
 export function PlanSummary({ plan }: PlanSummaryProps) {
   const req = plan.travel_request;
@@ -58,7 +58,7 @@ export function PlanSummary({ plan }: PlanSummaryProps) {
           {req.interests && req.interests.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
               <Tag size={11} color="var(--text-muted)" />
-              {req.interests.map(interest => (
+              {req.interests.map((interest: string) => (
                 <span key={interest} style={{
                   padding: '2px 9px', borderRadius: '99px',
                   background: 'var(--accent-glow)', border: '1px solid var(--accent-border)',
