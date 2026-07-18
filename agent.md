@@ -282,7 +282,7 @@ The final phase involved a rigorous architectural audit (simulating a Senior AI/
 ## Phase 12: HITL Workflow Orchestration & State Synchronisation
 
 1. **Intelligent Orchestration for Modifications**:
-   - Re-architected `route_after_review` in `routing.py` so that both "Reject" and "Modify" actions utilize the `_needs_re_research()` heuristic. 
+   - Re-architected `route_after_review` in `routing.py` so that both "Reject" and "Modify" actions utilize the `_needs_re_research()` heuristic.
    - Modification requests containing keywords like "destination", "dates", or "weather" now seamlessly trigger the `research_node` before reaching the `planner_node`, flawlessly executing the diagrammed orchestrated flow.
    - Fixed a bug where `research_node` cleared `rejection_feedback` from the state, ensuring that the planner node always receives the human feedback to produce visible revisions.
 
@@ -291,3 +291,22 @@ The final phase involved a rigorous architectural audit (simulating a Senior AI/
    - Hid the previous itinerary draft entirely during the `revising` status on `PlanPage.tsx`, focusing the user exclusively on the full-page loading indicator.
    - Perfectly centered the Success Toast on all viewports via `display: inline-flex` and absolute transforms.
    - Updated the `mock_invoke_planner_agent` to visibly prove revisions by injecting a "✨ Revised" Day 1 theme and prepending the user's exact text as a morning activity, eliminating user confusion during testing.
+
+---
+
+## Phase 13: Strict HITL Workflow Mechanics & Terminal Rejection
+
+1. **Terminal Rejection Flow**:
+   - Redesigned the "Reject" action from a continuous loop into a **terminal state**.
+   - Introduced `rejected_node` and updated graph edge routing so that a rejected plan strictly terminates, ceasing all agent activity and preventing infinite recursion loops.
+   - Updated the frontend UI (`WorkflowStepper` and `PlanPage`) to explicitly render a distinct "Planning Session Rejected" panel, halting polling once the status hits `rejected`.
+   
+2. **Surgical Itinerary Modification**:
+   - Refactored the `POST /plan/{id}/review` endpoint and `hitl_review_node` to accept a unified `feedback` string for both modify and reject flows.
+   - Updated the Planner Agent prompts and node definitions to inject the existing `draft_itinerary` into the context window.
+   - Enforced strict prompt engineering rules compelling the planner to modify *only* the specifically targeted days (e.g., "[Target: Day 2]") while preserving the rest of the plan exactly as-is, ensuring surgical updates.
+   
+3. **Comprehensive Test Suite Update**:
+   - Fixed outdated integration and unit tests that previously asserted cyclical routing for rejections. 
+   - Authored `test_hitl_review_sequence.py`, a robust end-to-end integration test validating a continuous flow: `Create -> Modify #1 -> Modify #2 -> Reject`.
+   - The test suite verified that un-targeted days are preserved, revisions strictly increment on modify, and rejections bypass the planner to immediately terminate the session. The full suite of 99 tests currently runs entirely green.
