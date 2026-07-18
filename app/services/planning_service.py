@@ -120,7 +120,9 @@ class PlanningService:
                 snapshot = await self._graph.aget_state(config)
                 if snapshot and snapshot.values:
                     sv = snapshot.values
-                    base.status = sv.get("status", meta.status)
+                    checkpoint_status = sv.get("status")
+                    if checkpoint_status and meta.status not in (STATUS_FINALIZED, STATUS_REVISING, STATUS_ERROR, STATUS_MAX_REVISIONS):
+                        base.status = checkpoint_status
                     base.revision_count = sv.get("revision_count", 0)
                     base.travel_request = sv.get("travel_request")
                     base.research_summary = sv.get("research_output")
@@ -284,7 +286,18 @@ class PlanningService:
                         await self._repo.update(plan_id, status=new_status)
                         logger.debug(f"_resume_graph | plan_id={plan_id} | node={node_name} | status→{new_status}")
 
-            logger.info(f"_resume_graph | plan_id={plan_id} | PAUSED or COMPLETED")
+            # Post-stream: determine if we paused at HITL or completed
+            try:
+                snapshot = await self._graph.aget_state(config)
+                if snapshot and snapshot.next == ("hitl_review_node",):
+                    await self._repo.update(plan_id, status=STATUS_AWAITING_REVIEW)
+                    logger.info(f"_resume_graph | plan_id={plan_id} | PAUSED at hitl_review_node")
+                else:
+                    if review.action == "approve":
+                        await self._repo.update(plan_id, status=STATUS_FINALIZED)
+                    logger.info(f"_resume_graph | plan_id={plan_id} | COMPLETED | next={getattr(snapshot, 'next', None)}")
+            except Exception as snap_exc:
+                logger.warning(f"_resume_graph | plan_id={plan_id} | Could not inspect post-stream snapshot: {snap_exc}")
 
         except Exception as exc:
             logger.exception(f"_resume_graph | plan_id={plan_id} | FAILED: {exc}")

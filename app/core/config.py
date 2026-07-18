@@ -62,7 +62,7 @@ class Settings(BaseSettings):
 
     # ── CORS ──────────────────────────────────────────────────────────────────
     CORS_ORIGINS: list[str] = Field(
-        default=["http://localhost:3000", "http://localhost:8000"],
+        default=["http://localhost:3000", "http://localhost:8000", "http://localhost:5173"],
         description="Allowed CORS origins. Override via CORS_ORIGINS env var in production (e.g. https://yourdomain.com).",
     )
 

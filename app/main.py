@@ -55,111 +55,319 @@ async def lifespan(app: FastAPI):
         from app.models.domain import ResearchOutput, Attraction, WeatherSummary, DraftItinerary, DailyPlan, Activity, BudgetAllocation
         from datetime import datetime, timezone, timedelta
         
+        # ── Interest/destination catalogue for mock personalization ──────────────
+        _ATTRACTION_CATALOGUE = {
+            "food": [
+                ("Local Food Market", "Browse fresh produce, street food stalls and artisan vendors at the city's bustling central market", 12.0, 1.5),
+                ("Cooking Class & Tasting", "Join a hands-on cooking class led by a local chef — learn signature dishes and enjoy a full tasting meal", 55.0, 3.0),
+                ("Rooftop Restaurant", "Dine at a celebrated rooftop restaurant offering panoramic views and a curated tasting menu", 45.0, 2.0),
+                ("Street Food Night Tour", "Guided evening walk through the city's best street food lanes — sample 8–10 local specialties", 30.0, 2.5),
+            ],
+            "shopping": [
+                ("Artisan Bazaar", "Wander through narrow lanes packed with handmade crafts, textiles, and local souvenirs", 0.0, 2.0),
+                ("Designer Shopping District", "Explore the upscale shopping boulevard lined with flagship stores and boutique brands", 0.0, 2.5),
+                ("Vintage & Antique Market", "Hunt for unique finds at the weekend flea market — vintage clothing, art prints, and collectibles", 0.0, 1.5),
+                ("Night Market", "A lively night market offering fashion, homeware, electronics, and local snacks under string lights", 15.0, 2.0),
+            ],
+            "nightlife": [
+                ("Rooftop Cocktail Bar", "Sip craft cocktails with skyline views at the city's most iconic rooftop bar — reservations recommended", 25.0, 2.0),
+                ("Live Jazz Lounge", "Unwind at a dimly lit jazz lounge featuring live performances from local musicians", 20.0, 2.5),
+                ("Underground Club Night", "Dance the night away at a renowned underground electronic music club", 30.0, 4.0),
+                ("Riverside Evening Cruise", "Board a night cruise along the river — live music, cocktails, and illuminated city skyline", 40.0, 2.0),
+            ],
+            "culture": [
+                ("National History Museum", "Explore galleries spanning thousands of years of local history, art, and artefacts", 18.0, 2.5),
+                ("Heritage Old Town Walk", "Guided walking tour through the UNESCO-listed old town — cobblestone streets, colonial architecture, and hidden courtyards", 22.0, 2.0),
+                ("Traditional Performing Arts Show", "Witness a live performance of the region's classical dance, music, or theatre tradition", 35.0, 2.0),
+                ("Local Temple or Sacred Site", "Visit a centuries-old temple or sacred monument — guided commentary on local spiritual traditions", 10.0, 1.5),
+            ],
+            "nature": [
+                ("National Park Day Hike", "Trek through scenic trails in the nearby national park — lush forests, waterfalls, and panoramic viewpoints", 20.0, 5.0),
+                ("Botanical Gardens", "Stroll through manicured botanical gardens featuring rare tropical and endemic plant species", 8.0, 1.5),
+                ("Sunrise Viewpoint", "Rise early for a breathtaking sunrise at the city's most famous hilltop or coastal viewpoint", 0.0, 1.5),
+                ("River Kayaking / Boat Tour", "Paddle through scenic waterways or take a guided boat tour through mangroves and wildlife habitats", 35.0, 3.0),
+            ],
+            "adventure": [
+                ("Rock Climbing Session", "Beginner-to-intermediate rock climbing at a local crag with certified instructors", 45.0, 3.0),
+                ("Zip-line Canopy Tour", "Soar through forest canopies on a multi-platform zip-line adventure course", 60.0, 2.5),
+                ("White Water Rafting", "Navigate Grade 3–4 rapids on a guided white-water rafting expedition", 70.0, 4.0),
+                ("Mountain Biking Trail", "Ride curated mountain bike trails ranging from scenic countryside to technical singletrack", 30.0, 3.0),
+            ],
+            "art": [
+                ("Contemporary Art Gallery", "Tour a world-class contemporary art gallery — rotating exhibitions from local and international artists", 15.0, 2.0),
+                ("Street Art District Walk", "Discover vibrant murals and installations in the city's famous street art neighbourhood", 0.0, 1.5),
+                ("Pottery or Craft Workshop", "Join a hands-on workshop and create your own piece of local pottery or traditional craft", 40.0, 2.5),
+                ("Photography Walk", "Join a guided photography walk through photogenic city streets and markets", 25.0, 2.0),
+            ],
+            "sightseeing": [
+                ("Iconic City Landmark", "Visit the city's most famous landmark — a must-see for every visitor", 20.0, 1.5),
+                ("Panoramic Observation Deck", "Ride to the top of the city's tallest tower for 360° views of the skyline and beyond", 25.0, 1.0),
+                ("Historic Neighbourhood Tour", "Explore charming old neighbourhoods packed with character, cafés, and local life", 10.0, 2.0),
+                ("Waterfront Promenade", "Stroll along the scenic waterfront promenade — ideal at golden hour", 0.0, 1.0),
+            ],
+        }
+
+        _WEATHER_BY_REGION = [
+            (["japan", "korea", "china", "taiwan"],          (22.0, 71.6, "Partly Cloudy", 25.0, 60.0)),
+            (["iceland", "norway", "sweden", "finland",
+              "denmark", "scotland", "alaska"],              (7.0,  44.6, "Cold & Overcast", 55.0, 75.0)),
+            (["thailand", "bali", "indonesia", "vietnam",
+              "singapore", "malaysia", "philippines"],        (32.0, 89.6, "Hot & Humid",  60.0, 85.0)),
+            (["india", "dubai", "egypt", "morocco",
+              "saudi", "uae", "rajasthan"],                   (35.0, 95.0, "Sunny & Hot",   5.0,  30.0)),
+            (["italy", "france", "spain", "portugal",
+              "greece", "croatia"],                          (24.0, 75.2, "Warm & Sunny",  15.0, 55.0)),
+            (["uk", "london", "england", "ireland"],          (14.0, 57.2, "Cloudy with light rain", 45.0, 70.0)),
+            (["australia", "new zealand"],                   (26.0, 78.8, "Sunny",          20.0, 50.0)),
+            (["brazil", "argentina", "colombia", "peru"],    (28.0, 82.4, "Warm & Partly Cloudy", 40.0, 65.0)),
+            (["canada", "usa"],                              (18.0, 64.4, "Clear",           20.0, 55.0)),
+        ]
+
+        def _get_weather(destination: str):
+            dest_lower = destination.lower()
+            for keywords, data in _WEATHER_BY_REGION:
+                if any(k in dest_lower for k in keywords):
+                    return data
+            return (20.0, 68.0, "Sunny", 10.0, 55.0)  # default
+
+        def _get_interest_attractions(interests: list[str], destination: str) -> list[Attraction]:
+            """Build a rich, interest-tailored attraction list."""
+            results = []
+            seen_names = set()
+            # Map aliases
+            alias_map = {"history": "culture", "outdoors": "nature", "music": "nightlife"}
+            normalised = [alias_map.get(i, i) for i in interests]
+
+            for interest in normalised:
+                pool = _ATTRACTION_CATALOGUE.get(interest, [])
+                for (name, desc, cost, hours) in pool:
+                    # Make names destination-specific
+                    specific_name = f"{destination.split(',')[0].strip()} — {name}"
+                    if specific_name in seen_names:
+                        continue
+                    seen_names.add(specific_name)
+                    results.append(Attraction(
+                        name=specific_name,
+                        description=desc,
+                        category=interest,
+                        estimated_visit_duration_hours=hours,
+                        approximate_cost_per_person=cost,
+                    ))
+
+            # If nothing matched, fall back to sightseeing
+            if not results:
+                for (name, desc, cost, hours) in _ATTRACTION_CATALOGUE["sightseeing"]:
+                    specific_name = f"{destination.split(',')[0].strip()} — {name}"
+                    results.append(Attraction(
+                        name=specific_name,
+                        description=desc,
+                        category="sightseeing",
+                        estimated_visit_duration_hours=hours,
+                        approximate_cost_per_person=cost,
+                    ))
+            return results
+
+        def _interest_tips_and_packing(interests: list[str]) -> tuple[list[str], list[str]]:
+            tips_map = {
+                "food":      ["Ask locals for off-menu recommendations", "Book popular restaurants 2–3 days in advance", "Carry antacids for adventurous street food tasting"],
+                "shopping":  ["Bargain politely at markets — start at 60% of the asking price", "Keep receipts for tax-free refunds at the airport", "Bring an extra foldable bag for purchases"],
+                "nightlife": ["Carry government-issued ID — many venues require it", "Use licensed taxis or ride-share apps late at night", "Pre-book tables at rooftop bars for weekend nights"],
+                "culture":   ["Dress modestly when visiting religious sites", "Download the museum app for audio guides", "Visit popular sites early morning to avoid crowds"],
+                "nature":    ["Book guided hikes in advance during peak season", "Check weather forecasts the evening before outdoor activities", "Leave no trace — take rubbish back with you"],
+                "adventure": ["Ensure your travel insurance covers adventure activities", "Listen carefully to safety briefings before each activity", "Stay hydrated and wear sunscreen for outdoor sessions"],
+                "art":       ["Check gallery websites for free entry days", "Photography rules vary — always ask before shooting", "Visit on weekday mornings for the quietest experience"],
+            }
+            packing_map = {
+                "food":      ["Appetite and an open mind", "Small notebook to jot restaurant names"],
+                "shopping":  ["A tote bag or daypack", "Padlock for hostel/hotel storage"],
+                "nightlife": ["Smart-casual outfit for venues", "Portable charger"],
+                "culture":   ["Respectful clothing (shoulders + knees covered)", "Pocket notebook for sketching"],
+                "nature":    ["Sturdy walking/hiking shoes", "Sunscreen SPF 50+", "Reusable water bottle"],
+                "adventure": ["Quick-dry activewear", "First aid kit basics", "GoPro or action camera"],
+                "art":       ["Sketchbook or journal", "Comfortable walking shoes"],
+            }
+            alias_map = {"history": "culture", "outdoors": "nature", "music": "nightlife"}
+            normalised = [alias_map.get(i, i) for i in interests]
+
+            tips, packing = [], ["Passport and travel documents", "Travel adapter", "Comfortable walking shoes"]
+            seen_tips, seen_packing = set(), set(packing)
+            for interest in normalised:
+                for t in tips_map.get(interest, []):
+                    if t not in seen_tips:
+                        tips.append(t)
+                        seen_tips.add(t)
+                for p in packing_map.get(interest, []):
+                    if p not in seen_packing:
+                        packing.append(p)
+                        seen_packing.add(p)
+            if not tips:
+                tips = ["Have local cash handy", "Keep digital copies of your documents"]
+            return tips, packing
+
+        def _build_day_plan(day_num: int, date, destination: str, interests: list[str]) -> DailyPlan:
+            """Build a fully interest-driven daily plan for one day."""
+            alias_map = {"history": "culture", "outdoors": "nature", "music": "nightlife"}
+            normalised = [alias_map.get(i, i) for i in interests]
+
+            # Rotate which interest anchors each time-slot across the trip
+            n = len(normalised)
+            morning_interest   = normalised[(day_num - 1) % n] if n else "sightseeing"
+            afternoon_interest = normalised[(day_num) % n]     if n else "sightseeing"
+            evening_interest   = normalised[(day_num + 1) % n] if n else "sightseeing"
+
+            def _pick(interest: str, slot_index: int):
+                pool = _ATTRACTION_CATALOGUE.get(interest, _ATTRACTION_CATALOGUE["sightseeing"])
+                entry = pool[slot_index % len(pool)]
+                name, desc, cost, dur = entry
+                return name, desc, cost, int(dur * 60)
+
+            morning_name, morning_desc, morning_cost, morning_dur = _pick(morning_interest, day_num)
+            afternoon_name, afternoon_desc, afternoon_cost, afternoon_dur = _pick(afternoon_interest, day_num + 1)
+            evening_name, evening_desc, evening_cost, evening_dur = _pick(evening_interest, day_num + 2)
+
+            theme_labels = {
+                "food": "Food & Flavours",
+                "shopping": "Retail Therapy",
+                "nightlife": "Nightlife & Entertainment",
+                "culture": "Culture & Heritage",
+                "nature": "Into the Wild",
+                "adventure": "Thrill & Adventure",
+                "art": "Art & Expression",
+                "sightseeing": "City Sights",
+            }
+            theme = theme_labels.get(morning_interest, "Explore & Enjoy")
+
+            daily_cost = morning_cost + afternoon_cost + evening_cost + 50.0  # 50 base for meals/transport
+
+            return DailyPlan(
+                day_number=day_num,
+                date=date,
+                theme=theme,
+                morning=[
+                    Activity(
+                        name=f"{destination.split(',')[0].strip()} — {morning_name}",
+                        description=morning_desc,
+                        location=destination,
+                        duration_minutes=morning_dur,
+                        estimated_cost_per_person=morning_cost,
+                        booking_required=morning_cost > 30,
+                        tips=f"Best experienced in the morning when crowds are thin.",
+                    )
+                ],
+                afternoon=[
+                    Activity(
+                        name=f"{destination.split(',')[0].strip()} — {afternoon_name}",
+                        description=afternoon_desc,
+                        location=destination,
+                        duration_minutes=afternoon_dur,
+                        estimated_cost_per_person=afternoon_cost,
+                        booking_required=afternoon_cost > 40,
+                        tips=f"Grab a coffee first — afternoons can be energetic here!",
+                    )
+                ],
+                evening=[
+                    Activity(
+                        name=f"{destination.split(',')[0].strip()} — {evening_name}",
+                        description=evening_desc,
+                        location=destination,
+                        duration_minutes=evening_dur,
+                        estimated_cost_per_person=evening_cost,
+                        booking_required=evening_cost > 25,
+                        tips=f"Reserve your spot in advance — popular among tourists and locals alike.",
+                    )
+                ],
+                accommodation="Centrally located boutique hotel",
+                estimated_daily_cost_per_person=round(daily_cost, 2),
+                travel_notes=f"Day {day_num}: {theme}. Use public transport or ride-share for easy city navigation.",
+            )
+
         async def mock_invoke_research_agent(*args, **kwargs):
             destination = kwargs.get("destination", args[0] if args else "Kyoto, Japan")
-            logger.info(f"[MOCK] invoke_research_agent called for destination={destination}")
+            interests = kwargs.get("interests", [])
+            logger.info(f"[MOCK] invoke_research_agent called for destination={destination} interests={interests}")
+
+            temp_c, temp_f, conditions, precip, humidity = _get_weather(destination)
+            attractions = _get_interest_attractions(interests, destination)
+
+            interest_tips = {
+                "food":      "Try eating where locals eat — avoid overly touristy restaurants near major attractions.",
+                "shopping":  "Most markets open late morning — arrive fresh at 10am for the best selection.",
+                "nightlife": "Pre-drink at the hotel to save on venue prices. Many clubs open after midnight.",
+                "culture":   "Purchase museum combo passes for significant savings on multi-site visits.",
+                "nature":    "Start hikes and outdoor activities early to beat heat and crowds.",
+                "adventure": "Confirm operator certifications before booking any adventure activity.",
+                "art":       "Follow local art accounts on social media to discover pop-up exhibitions.",
+            }
+            local_tips = ["Download an offline city map before you land", "Carry the local emergency number saved in your phone"]
+            for i in interests:
+                tip = interest_tips.get(i)
+                if tip:
+                    local_tips.append(tip)
+
             return ResearchOutput(
-                attractions=[
-                    Attraction(
-                        name="Popular Attraction 1",
-                        description=f"Must-visit landmark in {destination}",
-                        category="sightseeing",
-                        estimated_visit_duration_hours=2.0,
-                        approximate_cost_per_person=15.0,
-                    ),
-                    Attraction(
-                        name="Popular Attraction 2",
-                        description="Beautiful natural park or scenic view",
-                        category="nature",
-                        estimated_visit_duration_hours=1.5,
-                        approximate_cost_per_person=0.0,
-                    ),
-                ],
-                local_tips=["Use local public transit", "Respect local customs"],
-                safety_considerations=["Stay aware in crowded areas"],
+                attractions=attractions,
+                local_tips=local_tips,
+                safety_considerations=["Stay aware in crowded tourist areas", "Use ATMs inside banks rather than street kiosks"],
                 weather_summary=WeatherSummary(
-                    avg_temp_celsius=20.0,
-                    avg_temp_fahrenheit=68.0,
-                    conditions="Sunny",
-                    precipitation_chance_percent=10.0,
-                    humidity_percent=55.0,
-                    warnings=[],
+                    avg_temp_celsius=temp_c,
+                    avg_temp_fahrenheit=temp_f,
+                    conditions=conditions,
+                    precipitation_chance_percent=precip,
+                    humidity_percent=humidity,
+                    warnings=(["Pack a light rain jacket"] if precip > 40 else []),
                     data_available=True,
                 ),
-                seasonal_notes="Great season to travel here.",
-                general_destination_info=f"Fascinating historic details about {destination}.",
-                research_sources=["https://wikipedia.org"],
+                seasonal_notes=f"Current conditions in {destination}: {conditions}. {'Expect warm days — stay hydrated.' if temp_c > 28 else 'Comfortable travel weather — great time to visit.' if temp_c > 15 else 'Pack warm layers — temperatures can drop significantly.'}",
+                general_destination_info=f"{destination} is a vibrant destination perfect for {', '.join(interests) if interests else 'all types of travellers'}. The city blends modern energy with deep cultural roots, offering something unique at every turn.",
+                research_sources=["https://wikipedia.org", "https://tripadvisor.com", "https://lonelyplanet.com"],
                 researched_at=datetime.now(timezone.utc),
             )
-            
+
         async def mock_invoke_planner_agent(*args, **kwargs):
             req = kwargs.get("travel_request", args[0] if args else None)
             revision_count = kwargs.get("revision_count", args[2] if len(args) > 2 else 0)
-            
-            logger.info(f"[MOCK] invoke_planner_agent called for version {revision_count + 1}")
-            
+            logger.info(f"[MOCK] invoke_planner_agent called | destination={req.destination} | interests={req.interests} | version={revision_count + 1}")
+
+            interests = req.interests if req.interests else ["sightseeing"]
+
             daily_plans = []
             current_date = req.start_date
             day_num = 1
             while current_date <= req.end_date:
-                daily_plans.append(
-                    DailyPlan(
-                        day_number=day_num,
-                        date=current_date,
-                        theme="Explore & Enjoy",
-                        morning=[
-                            Activity(
-                                name="Morning Exploration",
-                                description="Start the day visiting key landmarks",
-                                location=req.destination,
-                                duration_minutes=120,
-                                estimated_cost_per_person=10.0,
-                            )
-                        ],
-                        afternoon=[
-                            Activity(
-                                name="Local Dining & Shopping",
-                                description="Taste local food and check out market stalls",
-                                location=req.destination,
-                                duration_minutes=90,
-                                estimated_cost_per_person=20.0,
-                            )
-                        ],
-                        evening=[
-                            Activity(
-                                name="Relaxing Evening Stroll",
-                                description="Unwind at a local park or cafe",
-                                location=req.destination,
-                                duration_minutes=90,
-                                estimated_cost_per_person=0.0,
-                            )
-                        ],
-                        accommodation="Recommended Local Hotel",
-                        estimated_daily_cost_per_person=120.0,
-                        travel_notes="Walk or take short taxi rides",
-                    )
-                )
+                daily_plans.append(_build_day_plan(day_num, current_date, req.destination, interests))
                 current_date += timedelta(days=1)
                 day_num += 1
-                
-            total_cost = len(daily_plans) * 150.0
-            
+
+            total_days = len(daily_plans)
+            total_cost = sum(p.estimated_daily_cost_per_person for p in daily_plans) * req.num_travelers
+
+            # Shift budget splits based on interests
+            food_weight = 0.30 if "food" in interests else 0.22
+            nightlife_weight = 0.12 if "nightlife" in interests else 0.05
+            activities_weight = 0.15 if any(i in interests for i in ["adventure", "culture", "art"]) else 0.10
+            accommodation_weight = 0.35
+            transport_weight = 0.10
+            contingency_weight = max(0.03, 1.0 - food_weight - nightlife_weight - activities_weight - accommodation_weight - transport_weight)
+
+            overall_tips, packing = _interest_tips_and_packing(interests)
+
             return DraftItinerary(
                 version=revision_count + 1,
                 daily_plans=daily_plans,
                 budget_allocation=BudgetAllocation(
-                    accommodation_total=total_cost * 0.4,
-                    transport_total=total_cost * 0.2,
-                    food_total=total_cost * 0.25,
-                    activities_total=total_cost * 0.1,
-                    contingency_total=total_cost * 0.05,
-                    grand_total=total_cost,
-                    per_person_total=total_cost / max(req.num_travelers, 1),
+                    accommodation_total=round(total_cost * accommodation_weight, 2),
+                    transport_total=round(total_cost * transport_weight, 2),
+                    food_total=round(total_cost * food_weight, 2),
+                    activities_total=round(total_cost * (activities_weight + nightlife_weight), 2),
+                    contingency_total=round(total_cost * contingency_weight, 2),
+                    grand_total=round(total_cost, 2),
+                    per_person_total=round(total_cost / max(req.num_travelers, 1), 2),
                     currency=req.budget_currency,
                     within_budget=total_cost <= req.budget_max,
+                    notes=f"Budget optimised for {', '.join(interests)} preferences over {total_days} days.",
                 ),
-                overall_tips=["Have local cash handy"],
-                packing_suggestions=["Comfortable shoes", "Adapters for electronics"],
+                overall_tips=overall_tips,
+                packing_suggestions=packing,
                 generated_at=datetime.now(timezone.utc),
             )
             
