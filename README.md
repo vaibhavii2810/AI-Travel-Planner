@@ -41,7 +41,7 @@ graph TD
         hitl_review_node -->|interrupt| PAUSE[(Checkpoint DB)]
         PAUSE -->|Command resume| hitl_review_node
         hitl_review_node -->|approve| finalize_node
-        hitl_review_node -->|reject| research_node
+        hitl_review_node -->|reject| rejected_node
         hitl_review_node -->|modify| planner_node
         hitl_review_node -->|max revisions| max_revisions_node
     end
@@ -72,6 +72,7 @@ stateDiagram-v2
     hitl_review_node --> hitl_review_node: interrupt() — PAUSED
     hitl_review_node --> finalize_node: approve
     hitl_review_node --> planner_node: modify
+    hitl_review_node --> rejected_node: reject (fallback)
     hitl_review_node --> research_node: reject (re-research)
     hitl_review_node --> planner_node: reject (re-plan)
     hitl_review_node --> max_revisions_node: revision limit hit
@@ -547,6 +548,29 @@ Generate idempotency keys on `POST /plan` to prevent duplicate submissions from 
 - **Mock agents in dev** — When placeholder API keys are detected, agents are replaced with deterministic mocks for local testing. No real LLM calls are made in this mode.
 
 ---
+
+
+---
+
+## Conclusion & Summary
+
+**Improvements with more time:**
+- **Streaming Responses**: Utilize Server-Sent Events (SSE) or WebSockets instead of client-side polling for status updates.
+- **Smarter Routing**: Implement an LLM classifier for rejection routing rather than relying on strict keyword matching.
+- **Async I/O**: Convert synchronous tool HTTP calls (e.g., Serper, OpenWeatherMap) to purely async using `httpx.AsyncClient` to avoid thread pool blocking.
+- **Persistence**: Migrate the in-memory `PlanRepository` to a persistent SQLAlchemy database table so plan metadata survives server restarts.
+
+**Production-readiness concerns:**
+- **Error Handling**: Graceful degradation is built in for external API failures. Exceptions are strictly typed into `TravelPlannerError` subclasses, ensuring backend stack traces never leak to the client.
+- **Concurrency**: The current `AsyncSqliteSaver` checkpointer is not safe for concurrent multi-worker deployments. Day-1 production requires swapping this for `AsyncPostgresSaver` and offloading `asyncio.create_task` graph executions to a durable queue like Celery or Temporal.
+- **Logging**: Basic structured logging is present. A true production setup would require JSON log shipping (Datadog/CloudWatch) and full LangSmith tracing for LLM observability.
+- **Edge Cases**: Mitigated via the `max_revisions_node` safeguard (preventing infinite review loops) and Pydantic robust validation error handling.
+
+**Assumptions made during implementation:**
+- The frontend tracks status via polling (`GET /plan/{id}`).
+- Single-tenant usage (no OAuth2/JWT or multi-user access control implemented).
+- `plan_id` acts as the bearer token/credential for accessing and modifying the plan.
+- SQLite is acceptable for this local/demonstration environment.
 
 ## License
 
