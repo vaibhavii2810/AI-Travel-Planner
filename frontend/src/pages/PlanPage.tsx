@@ -237,12 +237,15 @@ export function PlanPage() {
         {/* Success toast */}
         {toastMsg && (
           <div style={{
-            position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
-            padding: '12px 24px', zIndex: 100,
-            background: 'var(--accent)', border: '1px solid var(--accent)',
-            borderRadius: '99px', boxShadow: '0 4px 20px rgba(34,197,94,0.3)',
+            position: 'fixed', bottom: '28px',
+            left: '50%', transform: 'translateX(-50%)',
+            width: 'max-content', maxWidth: 'calc(100vw - 48px)',
+            padding: '12px 20px', zIndex: 9999,
+            background: 'var(--accent)',
+            borderRadius: '99px', boxShadow: '0 4px 24px rgba(34,197,94,0.35)',
             fontSize: '13px', fontWeight: 700, color: '#000',
-            display: 'flex', alignItems: 'center', gap: '8px'
+            display: 'flex', alignItems: 'center', gap: '8px',
+            whiteSpace: 'nowrap',
           }} className="animate-slide-up" role="alert">
             <CheckCircle size={16} />
             {toastMsg}

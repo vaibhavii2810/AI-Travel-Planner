@@ -121,7 +121,13 @@ class PlanningService:
                 if snapshot and snapshot.values:
                     sv = snapshot.values
                     checkpoint_status = sv.get("status")
-                    if checkpoint_status and meta.status not in (STATUS_FINALIZED, STATUS_REVISING, STATUS_ERROR, STATUS_MAX_REVISIONS):
+                    # Only let the checkpoint override the DB status if the DB status is
+                    # not already in a forward-moving state. This prevents the HITL node
+                    # (which sets status=awaiting_review in its return dict) from
+                    # overwriting the 'revising' state we just wrote when the user
+                    # submitted reject/modify.
+                    NON_OVERRIDABLE = (STATUS_FINALIZED, STATUS_REVISING, STATUS_ERROR, STATUS_MAX_REVISIONS)
+                    if checkpoint_status and meta.status not in NON_OVERRIDABLE:
                         base.status = checkpoint_status
                     base.revision_count = sv.get("revision_count", 0)
                     base.travel_request = sv.get("travel_request")
@@ -271,6 +277,9 @@ class PlanningService:
             "modifications": review.modifications,
         }
 
+        # Immediately set status to revising so frontend polling sees the transition
+        await self._repo.update(plan_id, status=STATUS_REVISING)
+
         try:
             logger.info(
                 f"_resume_graph | plan_id={plan_id} | action={review.action} | RESUMING"
@@ -283,7 +292,10 @@ class PlanningService:
                 for node_name, node_output in chunk.items():
                     if isinstance(node_output, dict) and "status" in node_output:
                         new_status = node_output["status"]
-                        await self._repo.update(plan_id, status=new_status)
+                        # Only write forward-moving statuses — never let a node
+                        # accidentally downgrade finalized → revising
+                        if new_status not in (STATUS_FINALIZED,):
+                            await self._repo.update(plan_id, status=new_status)
                         logger.debug(f"_resume_graph | plan_id={plan_id} | node={node_name} | status→{new_status}")
 
             # Post-stream: determine if we paused at HITL or completed
@@ -292,13 +304,25 @@ class PlanningService:
                 if snapshot and snapshot.next == ("hitl_review_node",):
                     await self._repo.update(plan_id, status=STATUS_AWAITING_REVIEW)
                     logger.info(f"_resume_graph | plan_id={plan_id} | PAUSED at hitl_review_node")
+                elif review.action == "approve":
+                    await self._repo.update(plan_id, status=STATUS_FINALIZED)
+                    logger.info(f"_resume_graph | plan_id={plan_id} | FINALIZED")
                 else:
-                    if review.action == "approve":
-                        await self._repo.update(plan_id, status=STATUS_FINALIZED)
+                    # Shouldn't happen — but safety net: if graph ended without
+                    # pausing at HITL during a revise, push to awaiting_review
+                    current_meta = await self._repo.get(plan_id)
+                    if current_meta and current_meta.status == STATUS_REVISING:
+                        await self._repo.update(plan_id, status=STATUS_AWAITING_REVIEW)
                     logger.info(f"_resume_graph | plan_id={plan_id} | COMPLETED | next={getattr(snapshot, 'next', None)}")
             except Exception as snap_exc:
                 logger.warning(f"_resume_graph | plan_id={plan_id} | Could not inspect post-stream snapshot: {snap_exc}")
+                # Safety net: ensure we don't leave it stuck on revising
+                try:
+                    await self._repo.update(plan_id, status=STATUS_AWAITING_REVIEW)
+                except Exception:
+                    pass
 
         except Exception as exc:
             logger.exception(f"_resume_graph | plan_id={plan_id} | FAILED: {exc}")
             await self._repo.update(plan_id, status=STATUS_ERROR, error_message=str(exc))
+
