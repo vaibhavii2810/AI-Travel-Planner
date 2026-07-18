@@ -9,6 +9,13 @@ interface ModifyModalProps {
   onClose: () => void;
 }
 
+const EXAMPLES = [
+  'Replace the Day 2 evening activity with a quieter experience.',
+  'Swap the Day 1 morning activity for something more adventurous.',
+  'Add a spa or wellness experience on the last day.',
+  'Replace one restaurant with a local street food market.',
+];
+
 export function ModifyModal({ open, loading, onSubmit, onClose }: ModifyModalProps) {
   const [instructions, setInstructions] = useState('');
   const [error, setError] = useState('');
@@ -32,65 +39,70 @@ export function ModifyModal({ open, loading, onSubmit, onClose }: ModifyModalPro
     }
   };
 
-  const examples = [
-    'Replace the Day 2 evening activity with a quieter experience.',
-    'Swap the Day 1 morning activity for something more adventurous.',
-    'Add a spa or wellness experience on the last day.',
-    'Replace one restaurant with a local street food market.',
-  ];
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modify-modal-title"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) handleClose();
-      }}
-    >
-      <div className="bg-white rounded-2xl shadow-modal w-full max-w-lg p-6 animate-slide-up">
+    <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) handleClose(); }}>
+      <div className="modal-panel" style={{ padding: '24px' }}>
+        
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-brand-50 flex items-center justify-center">
-              <Edit3 className="w-5 h-5 text-brand-500" aria-hidden="true" />
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '44px', height: '44px', borderRadius: '50%',
+              background: 'var(--accent-glow)',
+              border: '1px solid var(--accent-border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Edit3 size={18} color="var(--accent)" />
             </div>
             <div>
-              <h2 id="modify-modal-title" className="text-lg font-bold text-slate-900">
+              <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: '18px', color: 'var(--text-primary)' }}>
                 Modify Itinerary
               </h2>
-              <p className="text-xs text-slate-500">Targeted changes to your plan</p>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Targeted changes to your plan</p>
             </div>
           </div>
           <button
             onClick={handleClose}
             disabled={loading}
-            className="text-slate-400 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 rounded-lg p-1"
-            aria-label="Close"
+            style={{
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              color: 'var(--text-muted)', padding: '4px',
+            }}
           >
-            <X className="w-5 h-5" aria-hidden="true" />
+            <X size={18} />
           </button>
         </div>
 
-        <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.6 }}>
           Describe specific changes you'd like to make. The AI planner will apply 
           your modifications and return an updated itinerary for review.
         </p>
 
-        {/* Example chips */}
-        <div className="mb-3">
-          <p className="text-xs text-slate-400 mb-2 font-medium">Examples (click to use):</p>
-          <div className="flex flex-wrap gap-2">
-            {examples.map((ex) => (
+        {/* Suggestion pills */}
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
+            Examples (click to use)
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {EXAMPLES.map(ex => (
               <button
                 key={ex}
                 type="button"
-                onClick={() => {
-                  setInstructions(ex);
-                  setError('');
+                onClick={() => { setInstructions(ex); setError(''); }}
+                style={{
+                  fontSize: '11px', padding: '6px 12px', borderRadius: '99px',
+                  background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                  color: 'var(--text-secondary)', cursor: 'pointer',
+                  transition: 'all 0.15s',
                 }}
-                className="text-xs px-3 py-1.5 rounded-full border border-slate-200 text-slate-600 hover:border-brand-300 hover:text-brand-700 hover:bg-brand-50 transition-colors"
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-border)';
+                  (e.currentTarget as HTMLElement).style.color = 'var(--accent)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
+                  (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
+                }}
               >
                 {ex.slice(0, 45)}…
               </button>
@@ -99,57 +111,76 @@ export function ModifyModal({ open, loading, onSubmit, onClose }: ModifyModalPro
         </div>
 
         {/* Textarea */}
-        <div>
-          <label htmlFor="modify-instructions" className="block text-sm font-medium text-slate-700 mb-1.5">
-            Modification instructions <span className="text-red-500" aria-hidden="true">*</span>
+        <div style={{ marginBottom: '20px' }}>
+          <label htmlFor="modify-instructions" style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '8px' }}>
+            Modification instructions <span style={{ color: '#f87171' }}>*</span>
           </label>
           <textarea
             id="modify-instructions"
             value={instructions}
-            onChange={(e) => {
+            onChange={e => {
               setInstructions(e.target.value);
               if (e.target.value.trim()) setError('');
             }}
             disabled={loading}
             rows={4}
             placeholder="E.g. Replace the Day 2 evening activity with a relaxing sunset cruise…"
-            className={`w-full px-4 py-3 rounded-xl border text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none disabled:opacity-50 transition-colors ${
-              error ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'
-            }`}
+            style={{
+              width: '100%', padding: '12px', borderRadius: '10px',
+              fontFamily: 'inherit', fontSize: '14px', color: 'var(--text-primary)',
+              background: error ? 'rgba(248,113,113,0.05)' : 'var(--bg-input)',
+              border: `1px solid ${error ? 'rgba(248,113,113,0.5)' : 'var(--border)'}`,
+              resize: 'none', outline: 'none',
+              transition: 'border-color 0.15s, box-shadow 0.15s',
+            }}
+            onFocus={e => {
+              e.target.style.borderColor = 'var(--accent)';
+              e.target.style.boxShadow = '0 0 0 3px var(--accent-glow)';
+            }}
+            onBlur={e => {
+              e.target.style.borderColor = error ? 'rgba(248,113,113,0.5)' : 'var(--border)';
+              e.target.style.boxShadow = '';
+            }}
           />
-          {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+          {error && <p style={{ fontSize: '11px', color: '#f87171', marginTop: '6px' }}>{error}</p>}
         </div>
 
-        {/* Info note about the modifications structure */}
-        <p className="text-xs text-slate-400 mt-2 italic">
-          Your instructions will be sent as{' '}
-          <code className="bg-slate-100 px-1 rounded text-slate-500">modifications.instructions</code>
-          {' '}to the AI planner.
-        </p>
-
         {/* Actions */}
-        <div className="flex gap-3 mt-5">
+        <div style={{ display: 'flex', gap: '12px' }}>
           <button
             onClick={handleClose}
             disabled={loading}
-            className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+            style={{
+              flex: 1, padding: '11px', borderRadius: '10px',
+              background: 'transparent', border: '1px solid var(--border)',
+              color: 'var(--text-secondary)', fontSize: '14px', fontWeight: 600,
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}
           >
             Cancel
           </button>
           <button
-            id="submit-modify-btn"
             onClick={handleSubmit}
             disabled={loading || !instructions.trim()}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
+            style={{
+              flex: 1, padding: '11px', borderRadius: '10px',
+              background: 'var(--accent)', border: '1px solid var(--accent)',
+              color: '#000', fontSize: '14px', fontWeight: 700,
+              cursor: loading || !instructions.trim() ? 'not-allowed' : 'pointer',
+              opacity: loading || !instructions.trim() ? 0.7 : 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              transition: 'all 0.15s',
+              boxShadow: loading || !instructions.trim() ? 'none' : '0 0 20px var(--accent-glow)',
+            }}
           >
             {loading ? (
               <>
-                <LoadingSpinner size="sm" className="text-white" />
+                <LoadingSpinner size="sm" />
                 Applying…
               </>
             ) : (
               <>
-                <Send className="w-4 h-4" aria-hidden="true" />
+                <Send size={16} />
                 Apply Modifications
               </>
             )}

@@ -92,7 +92,7 @@ export function Navbar({ showBack, planId, onCopyId, copied, rightSlot }: Navbar
                   lineHeight: 1.1,
                 }}
               >
-                VoyageAI
+                AI Travel Planner
               </div>
               <div
                 style={{

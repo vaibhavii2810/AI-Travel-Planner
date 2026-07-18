@@ -47,20 +47,7 @@ export function HomePage() {
         {/* ── Hero ───────────────────────────────────────────────────── */}
         <div style={{ textAlign: 'center', marginBottom: '56px' }} className="animate-fade-in">
 
-          {/* Pill badge */}
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '8px',
-            padding: '6px 16px', borderRadius: '99px',
-            border: '1px solid var(--accent-border)',
-            background: 'var(--accent-glow)',
-            color: 'var(--accent)',
-            fontSize: '12px', fontWeight: 600,
-            letterSpacing: '0.06em', textTransform: 'uppercase',
-            marginBottom: '24px',
-          }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', animation: 'blink 1.8s ease-in-out infinite' }} />
-            Multi-Agent AI • Powered by LangGraph
-          </div>
+
 
           <h1 style={{
             fontFamily: "'Space Grotesk', sans-serif",

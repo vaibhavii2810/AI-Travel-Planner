@@ -9,7 +9,7 @@ interface RejectModalProps {
   onClose: () => void;
 }
 
-const PLACEHOLDER_EXAMPLES = [
+const EXAMPLES = [
   'Add more outdoor activities for an active trip.',
   'Reduce expensive activities to fit a tighter budget.',
   'I prefer more cultural and historical experiences.',
@@ -40,57 +40,69 @@ export function RejectModal({ open, loading, onSubmit, onClose }: RejectModalPro
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="reject-modal-title"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) handleClose();
-      }}
-    >
-      <div className="bg-white rounded-2xl shadow-modal w-full max-w-lg p-6 animate-slide-up">
+    <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) handleClose(); }}>
+      <div className="modal-panel" style={{ padding: '24px' }}>
+        
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
-              <XCircle className="w-5 h-5 text-red-500" aria-hidden="true" />
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '44px', height: '44px', borderRadius: '50%',
+              background: 'rgba(248,113,113,0.1)',
+              border: '1px solid rgba(248,113,113,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <XCircle size={18} color="#f87171" />
             </div>
             <div>
-              <h2 id="reject-modal-title" className="text-lg font-bold text-slate-900">
+              <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: '18px', color: 'var(--text-primary)' }}>
                 Request Revisions
               </h2>
-              <p className="text-xs text-slate-500">Tell the AI what to improve</p>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Tell the AI what to improve</p>
             </div>
           </div>
           <button
             onClick={handleClose}
             disabled={loading}
-            className="text-slate-400 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 rounded-lg p-1"
-            aria-label="Close"
+            style={{
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              color: 'var(--text-muted)', padding: '4px',
+            }}
           >
-            <X className="w-5 h-5" aria-hidden="true" />
+            <X size={18} />
           </button>
         </div>
 
-        <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.6 }}>
           Describe what you'd like changed. The AI agents will use your feedback to 
           research and build a revised itinerary.
         </p>
 
         {/* Suggestion pills */}
-        <div className="mb-3">
-          <p className="text-xs text-slate-400 mb-2 font-medium">Quick suggestions (click to use):</p>
-          <div className="flex flex-wrap gap-2">
-            {PLACEHOLDER_EXAMPLES.map((ex) => (
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
+            Quick suggestions (click to use)
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {EXAMPLES.map(ex => (
               <button
                 key={ex}
                 type="button"
-                onClick={() => {
-                  setFeedback(ex);
-                  setError('');
+                onClick={() => { setFeedback(ex); setError(''); }}
+                style={{
+                  fontSize: '11px', padding: '6px 12px', borderRadius: '99px',
+                  background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                  color: 'var(--text-secondary)', cursor: 'pointer',
+                  transition: 'all 0.15s',
                 }}
-                className="text-xs px-3 py-1.5 rounded-full border border-slate-200 text-slate-600 hover:border-brand-300 hover:text-brand-700 hover:bg-brand-50 transition-colors"
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = 'rgba(248,113,113,0.5)';
+                  (e.currentTarget as HTMLElement).style.color = '#f87171';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
+                  (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
+                }}
               >
                 {ex.slice(0, 40)}…
               </button>
@@ -99,14 +111,14 @@ export function RejectModal({ open, loading, onSubmit, onClose }: RejectModalPro
         </div>
 
         {/* Textarea */}
-        <div>
-          <label htmlFor="reject-feedback" className="block text-sm font-medium text-slate-700 mb-1.5">
-            Your feedback <span className="text-red-500" aria-hidden="true">*</span>
+        <div style={{ marginBottom: '20px' }}>
+          <label htmlFor="reject-feedback" style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '8px' }}>
+            Your feedback <span style={{ color: '#f87171' }}>*</span>
           </label>
           <textarea
             id="reject-feedback"
             value={feedback}
-            onChange={(e) => {
+            onChange={e => {
               setFeedback(e.target.value);
               if (e.target.value.trim()) setError('');
             }}
@@ -114,43 +126,74 @@ export function RejectModal({ open, loading, onSubmit, onClose }: RejectModalPro
             rows={4}
             maxLength={2000}
             placeholder="E.g. Add more outdoor activities and reduce the number of museum visits…"
-            className={`w-full px-4 py-3 rounded-xl border text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none disabled:opacity-50 transition-colors ${
-              error ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'
-            }`}
+            style={{
+              width: '100%', padding: '12px', borderRadius: '10px',
+              fontFamily: 'inherit', fontSize: '14px', color: 'var(--text-primary)',
+              background: error ? 'rgba(248,113,113,0.05)' : 'var(--bg-input)',
+              border: `1px solid ${error ? 'rgba(248,113,113,0.5)' : 'var(--border)'}`,
+              resize: 'none', outline: 'none',
+              transition: 'border-color 0.15s, box-shadow 0.15s',
+            }}
+            onFocus={e => {
+              e.target.style.borderColor = '#f87171';
+              e.target.style.boxShadow = '0 0 0 3px rgba(248,113,113,0.15)';
+            }}
+            onBlur={e => {
+              e.target.style.borderColor = error ? 'rgba(248,113,113,0.5)' : 'var(--border)';
+              e.target.style.boxShadow = '';
+            }}
           />
-          <div className="flex items-center justify-between mt-1">
-            {error ? (
-              <p className="text-xs text-red-500">{error}</p>
-            ) : (
-              <span />
-            )}
-            <p className="text-xs text-slate-400 text-right">{feedback.length}/2000</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
+            {error ? <p style={{ fontSize: '11px', color: '#f87171' }}>{error}</p> : <span />}
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{feedback.length}/2000</p>
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 mt-5">
+        <div style={{ display: 'flex', gap: '12px' }}>
           <button
             onClick={handleClose}
             disabled={loading}
-            className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+            style={{
+              flex: 1, padding: '11px', borderRadius: '10px',
+              background: 'transparent', border: '1px solid var(--border)',
+              color: 'var(--text-secondary)', fontSize: '14px', fontWeight: 600,
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}
           >
             Cancel
           </button>
           <button
-            id="submit-reject-btn"
             onClick={handleSubmit}
             disabled={loading || !feedback.trim()}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
+            style={{
+              flex: 1, padding: '11px', borderRadius: '10px',
+              background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)',
+              color: '#f87171', fontSize: '14px', fontWeight: 700,
+              cursor: loading || !feedback.trim() ? 'not-allowed' : 'pointer',
+              opacity: loading || !feedback.trim() ? 0.7 : 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => {
+              if (!loading && feedback.trim()) {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(248,113,113,0.15)';
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(248,113,113,0.5)';
+              }
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = 'rgba(248,113,113,0.1)';
+              (e.currentTarget as HTMLElement).style.borderColor = 'rgba(248,113,113,0.3)';
+            }}
           >
             {loading ? (
               <>
-                <LoadingSpinner size="sm" className="text-white" />
+                <LoadingSpinner size="sm" />
                 Submitting…
               </>
             ) : (
               <>
-                <Send className="w-4 h-4" aria-hidden="true" />
+                <Send size={16} />
                 Send Feedback
               </>
             )}
