@@ -73,8 +73,8 @@ def route_after_review(state: TravelPlanState) -> str:
         return "finalize_node"
 
     elif action == "modify":
-        mods = review_decision.get("modifications", {})
-        instructions = mods.get("instructions", "")
+        mods = review_decision.get("modifications") or {}
+        instructions = review_decision.get("feedback") or mods.get("instructions", "")
         if _needs_re_research(instructions):
             logger.info(
                 f"route_after_review | plan_id={plan_id} | action=modify | "

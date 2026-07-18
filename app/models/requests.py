@@ -18,23 +18,24 @@ class ReviewRequest(BaseModel):
 
     action: Literal["approve", "reject", "modify"] = Field(
         ...,
-        description="The review action: approve, reject (with feedback), or modify (with modifications).",
+        description="The review action: approve, reject, or modify.",
     )
     feedback: Optional[str] = Field(
         default=None,
         max_length=2000,
-        description="Required when action='reject'. Describes what needs to change.",
+        description="Required when action='reject' or 'modify'. Describes what needs to change.",
     )
+    # Keeping modifications for backward compatibility but making it fully optional
     modifications: Optional[dict[str, Any]] = Field(
         default=None,
-        description="Required when action='modify'. Targeted changes to apply to the itinerary.",
+        description="Legacy field for structured modifications.",
     )
 
     @model_validator(mode="after")
     def validate_action_fields(self) -> "ReviewRequest":
-        """Enforce cross-field rules: reject requires feedback, modify requires modifications."""
-        if self.action == "reject" and not self.feedback:
-            raise ValueError("feedback is required and must be non-empty when action is 'reject'")
-        if self.action == "modify" and not self.modifications:
-            raise ValueError("modifications is required when action is 'modify'")
+        """Enforce cross-field rules: reject and modify require feedback."""
+        if self.action in ("reject", "modify"):
+            # Check if feedback exists OR if legacy modifications is provided
+            if not self.feedback and not self.modifications:
+                raise ValueError("feedback is required when action is 'reject' or 'modify'")
         return self

@@ -68,8 +68,16 @@ def hitl_review_node(state: TravelPlanState) -> dict:
 
     # Extract feedback/modifications from the review decision
     action = review_decision.get("action", "")
-    rejection_feedback = review_decision.get("feedback") if action == "reject" else None
-    modification_request = review_decision.get("modifications") if action == "modify" else None
+    feedback = review_decision.get("feedback")
+    
+    # Support legacy modifications dict or native feedback string
+    mods = review_decision.get("modifications") or {}
+    feedback_str = feedback or mods.get("instructions") or ""
+
+    rejection_feedback = feedback_str if action == "reject" else None
+    
+    # For modify, we pass the feedback string directly in a dict to match Planner Agent's expected format
+    modification_request = {"instructions": feedback_str} if action == "modify" else None
 
     return {
         "review_decision": review_decision,
