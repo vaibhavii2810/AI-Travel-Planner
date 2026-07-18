@@ -64,7 +64,7 @@ export function usePlan(planId: string | undefined): UsePlanReturn {
       }
 
       // Stop polling on terminal statuses
-      if (['finalized', 'error', 'max_revisions_exceeded'].includes(data.status)) {
+      if (['finalized', 'error', 'max_revisions_exceeded', 'rejected'].includes(data.status)) {
         shouldPollRef.current = false;
       }
     } catch (err) {

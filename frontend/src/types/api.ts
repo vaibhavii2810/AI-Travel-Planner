@@ -121,7 +121,8 @@ export type PlanStatus =
   | 'finalizing'
   | 'finalized'
   | 'error'
-  | 'max_revisions_exceeded';
+  | 'max_revisions_exceeded'
+  | 'rejected';
 
 // ── Response Types ────────────────────────────────────────────────────────────
 

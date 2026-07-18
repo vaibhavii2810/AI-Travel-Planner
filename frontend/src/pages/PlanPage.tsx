@@ -88,7 +88,7 @@ export function PlanPage() {
   const isProcessing    = ['queued', 'researching', 'planning', 'revising'].includes(plan.status);
   const isAwaitingReview = plan.status === 'awaiting_review';
   const isFinalized      = plan.status === 'finalized';
-  const isError          = plan.status === 'error' || plan.status === 'max_revisions_exceeded';
+  const isError          = plan.status === 'error' || plan.status === 'max_revisions_exceeded' || plan.status === 'rejected';
   // While revising, keep showing old itinerary as a ghost behind the loading overlay
   const displayItinerary = isFinalized ? (finalPlan?.final_itinerary ?? itinerary) : itinerary;
 
@@ -131,17 +131,23 @@ export function PlanPage() {
           </div>
         )}
 
-        {/* Backend error */}
+        {/* Backend error or Rejected */}
         {isError && (
           <div style={{
             background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.25)',
             borderRadius: '16px', padding: '24px', marginBottom: '20px',
           }} className="animate-fade-in">
             <h2 style={{ fontWeight: 700, color: '#f87171', marginBottom: '6px', fontSize: '16px' }}>
-              {plan.status === 'max_revisions_exceeded' ? 'Max Revisions Reached' : 'Planning Error'}
+              {plan.status === 'max_revisions_exceeded' 
+                ? 'Max Revisions Reached' 
+                : plan.status === 'rejected'
+                  ? 'Planning Session Rejected'
+                  : 'Planning Error'}
             </h2>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-              {plan.error_message ?? 'An error occurred during planning. Please start a new plan.'}
+              {plan.status === 'rejected'
+                ? 'This travel plan has been rejected and closed. Please start a new planning session.'
+                : (plan.error_message ?? 'An error occurred during planning. Please start a new plan.')}
             </p>
             <Link to="/new" className="btn btn-danger" style={{ textDecoration: 'none', display: 'inline-flex' }}>
               Start new plan
