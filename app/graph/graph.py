@@ -28,6 +28,7 @@ from app.graph.nodes.finalize_node import finalize_node
 from app.graph.nodes.hitl_review_node import hitl_review_node
 from app.graph.nodes.max_revisions_node import max_revisions_node
 from app.graph.nodes.planner_node import planner_node
+from app.graph.nodes.rejected_node import rejected_node
 from app.graph.nodes.research_node import research_node
 from app.graph.state import TravelPlanState
 
@@ -66,6 +67,7 @@ def build_graph(checkpointer: BaseCheckpointSaver):
     graph.add_node("hitl_review_node", hitl_review_node)
     graph.add_node("finalize_node", finalize_node)
     graph.add_node("max_revisions_node", max_revisions_node)
+    graph.add_node("rejected_node", rejected_node)
 
     # ── Register edges ────────────────────────────────────────────────────────
 
@@ -85,12 +87,14 @@ def build_graph(checkpointer: BaseCheckpointSaver):
             "planner_node": "planner_node",
             "research_node": "research_node",
             "max_revisions_node": "max_revisions_node",
+            "rejected_node": "rejected_node",
         },
     )
 
     # Terminal edges
     graph.add_edge("finalize_node", END)
     graph.add_edge("max_revisions_node", END)
+    graph.add_edge("rejected_node", END)
 
     # ── Compile with checkpointer (REQUIRED for interrupt() persistence) ───────
     compiled = graph.compile(

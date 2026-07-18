@@ -89,18 +89,11 @@ def route_after_review(state: TravelPlanState) -> str:
             return "planner_node"
 
     elif action == "reject":
-        if _needs_re_research(feedback):
-            logger.info(
-                f"route_after_review | plan_id={plan_id} | action=reject | "
-                f"feedback triggers re-research → research_node"
-            )
-            return "research_node"
-        else:
-            logger.info(
-                f"route_after_review | plan_id={plan_id} | action=reject | "
-                f"feedback is planner-level → planner_node"
-            )
-            return "planner_node"
+        logger.info(
+            f"route_after_review | plan_id={plan_id} | action=reject → rejected_node "
+            f"(terminal: no re-planning on reject)"
+        )
+        return "rejected_node"
 
     # Fallback — should not normally reach here
     logger.error(
