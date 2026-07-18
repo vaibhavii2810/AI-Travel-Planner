@@ -18,6 +18,7 @@ const EXAMPLES = [
 
 export function ModifyModal({ open, loading, onSubmit, onClose }: ModifyModalProps) {
   const [instructions, setInstructions] = useState('');
+  const [selectedDay, setSelectedDay] = useState('All Days');
   const [error, setError] = useState('');
 
   if (!open) return null;
@@ -28,7 +29,13 @@ export function ModifyModal({ open, loading, onSubmit, onClose }: ModifyModalPro
       return;
     }
     setError('');
-    onSubmit(instructions.trim());
+    
+    // Combine the dropdown selection with the text area
+    const finalFeedback = selectedDay === 'All Days' 
+      ? instructions.trim()
+      : `[Target: ${selectedDay}] ${instructions.trim()}`;
+      
+    onSubmit(finalFeedback);
   };
 
   const handleClose = () => {
@@ -110,6 +117,33 @@ export function ModifyModal({ open, loading, onSubmit, onClose }: ModifyModalPro
           </div>
         </div>
 
+        {/* Dropdown */}
+        <div style={{ marginBottom: '16px' }}>
+          <label htmlFor="modify-day" style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '8px' }}>
+            Which day do you want to modify? <span style={{ color: '#f87171' }}>*</span>
+          </label>
+          <select
+            id="modify-day"
+            value={selectedDay}
+            onChange={e => setSelectedDay(e.target.value)}
+            disabled={loading}
+            style={{
+              width: '100%', padding: '12px', borderRadius: '10px',
+              fontFamily: 'inherit', fontSize: '14px', color: 'var(--text-primary)',
+              background: 'var(--bg-input)', border: '1px solid var(--border)',
+              outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s',
+              cursor: 'pointer', appearance: 'none',
+            }}
+          >
+            <option value="All Days">All Days / General change</option>
+            <option value="Day 1">Day 1</option>
+            <option value="Day 2">Day 2</option>
+            <option value="Day 3">Day 3</option>
+            <option value="Day 4">Day 4</option>
+            <option value="Day 5">Day 5</option>
+          </select>
+        </div>
+
         {/* Textarea */}
         <div style={{ marginBottom: '20px' }}>
           <label htmlFor="modify-instructions" style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '8px' }}>
@@ -124,7 +158,7 @@ export function ModifyModal({ open, loading, onSubmit, onClose }: ModifyModalPro
             }}
             disabled={loading}
             rows={4}
-            placeholder="E.g. Replace the Day 2 evening activity with a relaxing sunset cruise…"
+            placeholder="E.g. Replace scuba diving with jet skiing. Add a seafood restaurant."
             style={{
               width: '100%', padding: '12px', borderRadius: '10px',
               fontFamily: 'inherit', fontSize: '14px', color: 'var(--text-primary)',
