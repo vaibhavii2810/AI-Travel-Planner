@@ -8,7 +8,7 @@ from datetime import date as dt_date, datetime, timezone
 from enum import Enum
 from typing import Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 
 # ── Base config for all domain models ────────────────────────────────────────
@@ -142,6 +142,19 @@ class Activity(_DomainModel):
         if val < 0:
             raise ValueError("Cost and duration cannot be negative")
         return val
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def cost_per_hour(self) -> float:
+        """
+        Derived, never stored — always recomputed from the current cost/duration.
+        Any Modify that changes either field (replace, add, swap) automatically
+        yields a correct cost_per_hour with no separate recalculation step.
+        """
+        duration_hours = self.duration_minutes / 60
+        if duration_hours <= 0:
+            return 0.0
+        return round(self.estimated_cost_per_person / duration_hours, 2)
 
 
 class DailyPlan(_DomainModel):

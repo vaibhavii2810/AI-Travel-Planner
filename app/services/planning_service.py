@@ -30,7 +30,6 @@ from app.graph.state import (
     STATUS_FINALIZED,
     STATUS_MAX_REVISIONS,
     STATUS_QUEUED,
-    STATUS_REJECTED,
     STATUS_RESEARCHING,
     STATUS_REVISING,
     initial_state,
@@ -127,7 +126,7 @@ class PlanningService:
                     # (which sets status=awaiting_review in its return dict) from
                     # overwriting the 'revising' state we just wrote when the user
                     # submitted reject/modify.
-                    NON_OVERRIDABLE = (STATUS_FINALIZED, STATUS_REJECTED, STATUS_REVISING, STATUS_ERROR, STATUS_MAX_REVISIONS)
+                    NON_OVERRIDABLE = (STATUS_FINALIZED, STATUS_REVISING, STATUS_ERROR, STATUS_MAX_REVISIONS)
                     if checkpoint_status and meta.status not in NON_OVERRIDABLE:
                         base.status = checkpoint_status
                     base.revision_count = sv.get("revision_count", 0)
@@ -165,13 +164,11 @@ class PlanningService:
             f"PlanningService.submit_review | plan_id={plan_id} | action={review.action}"
         )
 
-        # Update metadata immediately with the right status per action
-        if review.action == "approve":
-            new_status = STATUS_FINALIZED
-        elif review.action == "reject":
-            new_status = STATUS_REJECTED
-        else:  # modify
-            new_status = STATUS_REVISING
+        # Update metadata immediately with the right status per action.
+        # reject behaves exactly like modify: the Orchestrator routes the
+        # feedback to the Planner (or Research Agent first) and produces a
+        # revised draft — it never terminates the session.
+        new_status = STATUS_FINALIZED if review.action == "approve" else STATUS_REVISING
         await self._repo.update(plan_id, status=new_status)
 
         # Resume graph in background using Command(resume=...)
@@ -182,10 +179,7 @@ class PlanningService:
 
         action_messages = {
             "approve": "Plan approved! Finalizing your itinerary.",
-            "reject": (
-                "Plan rejected. The workflow has been terminated. "
-                "Start a new plan (POST /plan) if you would like a fresh itinerary."
-            ),
+            "reject": "Feedback received. Revising your itinerary based on your rejection reason. Poll GET /plan/{id} for the updated draft.",
             "modify": "Modifications received. Revising itinerary. Poll GET /plan/{id} for the updated draft.",
         }
 

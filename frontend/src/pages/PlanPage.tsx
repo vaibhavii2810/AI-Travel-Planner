@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
 import { CheckCircle, Printer } from 'lucide-react';
 import { WorkflowStepper } from '@/components/WorkflowStepper';
 import { PlanSummary } from '@/components/PlanSummary';
@@ -77,6 +77,12 @@ export function PlanPage() {
   }
 
   if (error && !plan) {
+    // Plan doesn't exist (stale link, or dev backend restarted and lost its
+    // in-memory store) — go home instead of stranding the user on a dead-end
+    // "Try again" screen that will just 404 forever.
+    if (error.status === 404) {
+      return <Navigate to="/" replace />;
+    }
     return <Shell planId={planId}><ErrorState error={error} onRetry={refetch} /></Shell>;
   }
 
@@ -88,7 +94,7 @@ export function PlanPage() {
   const isProcessing    = ['queued', 'researching', 'planning', 'revising'].includes(plan.status);
   const isAwaitingReview = plan.status === 'awaiting_review';
   const isFinalized      = plan.status === 'finalized';
-  const isError          = plan.status === 'error' || plan.status === 'max_revisions_exceeded' || plan.status === 'rejected';
+  const isError          = plan.status === 'error' || plan.status === 'max_revisions_exceeded';
   // While revising, keep showing old itinerary as a ghost behind the loading overlay
   const displayItinerary = isFinalized ? (finalPlan?.final_itinerary ?? itinerary) : itinerary;
 
@@ -131,23 +137,19 @@ export function PlanPage() {
           </div>
         )}
 
-        {/* Backend error or Rejected */}
+        {/* Backend error */}
         {isError && (
           <div style={{
             background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.25)',
             borderRadius: '16px', padding: '24px', marginBottom: '20px',
           }} className="animate-fade-in">
             <h2 style={{ fontWeight: 700, color: '#f87171', marginBottom: '6px', fontSize: '16px' }}>
-              {plan.status === 'max_revisions_exceeded' 
-                ? 'Max Revisions Reached' 
-                : plan.status === 'rejected'
-                  ? 'Planning Session Rejected'
-                  : 'Planning Error'}
+              {plan.status === 'max_revisions_exceeded'
+                ? 'Max Revisions Reached'
+                : 'Planning Error'}
             </h2>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-              {plan.status === 'rejected'
-                ? 'This travel plan has been rejected and closed. Please start a new planning session.'
-                : (plan.error_message ?? 'An error occurred during planning. Please start a new plan.')}
+              {plan.error_message ?? 'An error occurred during planning. Please start a new plan.'}
             </p>
             <Link to="/new" className="btn btn-danger" style={{ textDecoration: 'none', display: 'inline-flex' }}>
               Start new plan

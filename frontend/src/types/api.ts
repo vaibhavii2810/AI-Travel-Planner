@@ -34,6 +34,7 @@ export interface Activity {
   estimated_cost_per_person: number;
   booking_required: boolean;
   tips: string;
+  cost_per_hour: number; // derived server-side from cost/duration — always in sync after Modify
 }
 
 export interface DailyPlan {
@@ -121,8 +122,7 @@ export type PlanStatus =
   | 'finalizing'
   | 'finalized'
   | 'error'
-  | 'max_revisions_exceeded'
-  | 'rejected';
+  | 'max_revisions_exceeded';
 
 // ── Response Types ────────────────────────────────────────────────────────────
 

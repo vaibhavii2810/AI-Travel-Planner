@@ -53,6 +53,7 @@ async def lifespan(app: FastAPI):
         import app.graph.nodes.research_node as rn_mod
         import app.graph.nodes.planner_node as pn_mod
         from app.models.domain import ResearchOutput, Attraction, WeatherSummary, DraftItinerary, DailyPlan, Activity, BudgetAllocation
+        from app.services.itinerary_modifier import parse_modification_instructions, apply_modification
         from datetime import datetime, timezone, timedelta
         
         # ── Interest/destination catalogue for mock personalization ──────────────
@@ -366,60 +367,60 @@ async def lifespan(app: FastAPI):
                 for (name, desc, cost, hours) in _ATTRACTION_CATALOGUE["sightseeing"]:
                     flat_pool.append((name, desc, cost, hours, "sightseeing"))
 
+            # Full catalogue across every category (not just the traveler's chosen
+            # interests) — needed so "more indoor activities" has real indoor
+            # candidates even if the traveler's interests are all outdoor ones.
+            full_pool: list[tuple] = [
+                (name, desc, cost, hours, cat)
+                for cat, entries in _ATTRACTION_CATALOGUE.items()
+                for (name, desc, cost, hours) in entries
+            ]
+
             # If the trip is longer than the pool, cycle back but ensure each day
             # still has 3 distinct activities (morning ≠ afternoon ≠ evening).
             # We achieve this by extending the pool with shuffled copies.
-            import itertools
             num_days = (req.end_date - req.start_date).days + 1
             needed = num_days * 3
             while len(flat_pool) < needed:
                 flat_pool = flat_pool + flat_pool  # double it until large enough
-            # Assign slots sequentially — no activity shares a day slot
-            slot_cursor = 0
-
-            daily_plans = []
-            current_date = req.start_date
-            day_num = 1
-            while current_date <= req.end_date:
-                morning_slot   = flat_pool[slot_cursor % len(flat_pool)]; slot_cursor += 1
-                afternoon_slot = flat_pool[slot_cursor % len(flat_pool)]; slot_cursor += 1
-                evening_slot   = flat_pool[slot_cursor % len(flat_pool)]; slot_cursor += 1
-                daily_plans.append(
-                    _build_day_plan(day_num, current_date, req.destination, morning_slot, afternoon_slot, evening_slot)
-                )
-                current_date += timedelta(days=1)
-                day_num += 1
-
-            total_days = len(daily_plans)
-            total_cost = sum(p.estimated_daily_cost_per_person for p in daily_plans) * req.num_travelers
 
             rejection_feedback = kwargs.get("rejection_feedback")
             modification_request = kwargs.get("modification_request")
+            feedback_text = rejection_feedback or (modification_request.get("instructions") if modification_request else None)
+            previous_draft = kwargs.get("draft_itinerary")
 
-            # Apply visible changes whenever feedback or modifications are provided
-            # (revision_count check removed — feedback can come on the first revision)
-            if rejection_feedback or modification_request:
-                feedback_text = rejection_feedback or (modification_request.get("instructions") if modification_request else "User feedback")
-                # Mark first day as revised and prepend a custom activity to morning slot
-                daily_plans[0].theme = "✨ Revised — " + daily_plans[0].theme
-                daily_plans[0].practical_notes = f"Updated per your feedback: \"{feedback_text[:120]}\""
-                # Try to extract a realistic name from the feedback text
-                activity_name = "Custom Activity"
-                lower_text = feedback_text.lower()
-                if "with " in lower_text:
-                    activity_name = feedback_text[lower_text.rfind("with ") + 5:].strip().title()
-                elif " to " in lower_text:
-                    activity_name = feedback_text[lower_text.rfind(" to ") + 4:].strip().title()
+            if previous_draft is not None and len(previous_draft.daily_plans) == num_days and feedback_text:
+                # Revision: mutate a COPY of the PREVIOUS draft at exactly the
+                # day/slot/operation the feedback asked for. Never regenerate
+                # from scratch — every other day and slot stays byte-for-byte
+                # identical to the version the user was just looking at.
+                intent = parse_modification_instructions(feedback_text, num_days)
+                daily_plans = apply_modification(
+                    previous_draft.daily_plans, intent, req.destination,
+                    activity_pool=flat_pool, num_travelers=req.num_travelers,
+                    full_activity_pool=full_pool,
+                )
+            elif previous_draft is not None and len(previous_draft.daily_plans) == num_days:
+                daily_plans = [d.model_copy(deep=True) for d in previous_draft.daily_plans]
+            else:
+                # First generation (or day-count changed) — assign slots sequentially,
+                # no activity shares a day slot.
+                slot_cursor = 0
+                daily_plans = []
+                current_date = req.start_date
+                day_num = 1
+                while current_date <= req.end_date:
+                    morning_slot   = flat_pool[slot_cursor % len(flat_pool)]; slot_cursor += 1
+                    afternoon_slot = flat_pool[slot_cursor % len(flat_pool)]; slot_cursor += 1
+                    evening_slot   = flat_pool[slot_cursor % len(flat_pool)]; slot_cursor += 1
+                    daily_plans.append(
+                        _build_day_plan(day_num, current_date, req.destination, morning_slot, afternoon_slot, evening_slot)
+                    )
+                    current_date += timedelta(days=1)
+                    day_num += 1
 
-                daily_plans[0].morning.insert(0, Activity(
-                    name=activity_name,
-                    description=f"Enjoy {activity_name.lower()} as requested. This is a custom activity tailored to your preference: {feedback_text[:100]}.",
-                    location=req.destination,
-                    duration_minutes=120,
-                    estimated_cost_per_person=25.0,
-                    booking_required=False,
-                    tips="This activity was added in response to your revision request.",
-                ))
+            total_days = len(daily_plans)
+            total_cost = sum(p.estimated_daily_cost_per_person for p in daily_plans) * req.num_travelers
 
             food_weight         = 0.30 if "food"      in interests else 0.22
             nightlife_weight    = 0.12 if "nightlife" in interests else 0.05

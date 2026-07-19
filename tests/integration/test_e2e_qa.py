@@ -227,19 +227,17 @@ class TestSerperAuthError:
 
 class TestRejectWithReResearch:
     """
-    Prompt 8 Flow B full graph path: reject with research-triggering feedback
-    must route back through research_node (not just planner_node).
+    Reject routes through the same Orchestrator logic as modify: feedback
+    implying a destination/date/season change reruns research_node before
+    planner_node; everything else goes straight to planner_node. Reject is
+    never terminal — it always produces a revised draft awaiting review.
     """
 
     @pytest.mark.asyncio
-    async def test_reject_terminates_to_rejected_status(self, compiled_graph, sample_travel_request):
-        """
-        Verify that any reject action routes to rejected_node and terminates.
-        Reject is now always terminal — it never re-researches or re-plans.
-        """
-        from app.graph.state import STATUS_REJECTED
-
-        plan_id = "test-flow-b-reject-terminal"
+    async def test_reject_with_research_keywords_reruns_research(self, compiled_graph, sample_travel_request):
+        """Reject feedback with research-triggering keywords (weather, outdated,
+        etc.) reruns research_node then planner_node, then pauses for review again."""
+        plan_id = "test-flow-b-reject-reresearch"
         config = {"configurable": {"thread_id": plan_id}}
         state = initial_state(plan_id, sample_travel_request)
 
@@ -255,7 +253,6 @@ class TestRejectWithReResearch:
             result = await compiled_graph.ainvoke(state, config=config)
             assert result.get("status") == STATUS_AWAITING_REVIEW
 
-            # Reject with any feedback (even research-sounding keywords)
             research_feedback = {
                 "action": "reject",
                 "feedback": "The weather information is completely wrong and outdated",
@@ -266,14 +263,52 @@ class TestRejectWithReResearch:
                 Command(resume=research_feedback), config=config
             )
 
-            # Reject is now TERMINAL — status must be rejected, graph ends
-            assert resumed.get("status") == STATUS_REJECTED
+            # Reject is NOT terminal — a revised draft is awaiting review again
+            assert resumed.get("status") == STATUS_AWAITING_REVIEW
+            assert resumed.get("revision_count") == 2
 
-            # Graph finished — next is empty
             snapshot = await compiled_graph.aget_state(config)
-            assert snapshot.next == ()
+            assert snapshot.next == ("hitl_review_node",)
 
-            # Research called ONCE (initial only) — reject does NOT re-research
+            # Research reran (research-triggering keywords) then planner reran
+            assert mock_research.call_count == 2
+            assert mock_planner.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_reject_with_planner_level_feedback_skips_research(self, compiled_graph, sample_travel_request):
+        """Reject feedback with no destination/date signal (e.g. budget) skips
+        research_node and routes straight to planner_node, like modify does."""
+        plan_id = "test-flow-b-reject-planner-only"
+        config = {"configurable": {"thread_id": plan_id}}
+        state = initial_state(plan_id, sample_travel_request)
+
+        from langgraph.types import Command
+
+        with patch("app.graph.nodes.research_node.invoke_research_agent") as mock_research, \
+             patch("app.graph.nodes.planner_node.invoke_planner_agent") as mock_planner:
+
+            mock_research.return_value = {"dummy": "research"}
+            mock_planner.return_value = {"dummy": "itinerary", "version": 1}
+
+            result = await compiled_graph.ainvoke(state, config=config)
+            assert result.get("status") == STATUS_AWAITING_REVIEW
+
+            budget_feedback = {
+                "action": "reject",
+                "feedback": "The budget is too high, please reduce it.",
+                "modifications": None,
+            }
+
+            resumed = await compiled_graph.ainvoke(
+                Command(resume=budget_feedback), config=config
+            )
+
+            assert resumed.get("status") == STATUS_AWAITING_REVIEW
+            assert resumed.get("revision_count") == 2
+
+            snapshot = await compiled_graph.aget_state(config)
+            assert snapshot.next == ("hitl_review_node",)
+
+            # Research NOT rerun — budget feedback is planner-level only
             assert mock_research.call_count == 1
-            # Planner called ONCE (initial only) — reject does NOT re-plan
-            assert mock_planner.call_count == 1
+            assert mock_planner.call_count == 2

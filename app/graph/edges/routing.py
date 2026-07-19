@@ -49,8 +49,12 @@ def route_after_review(state: TravelPlanState) -> str:
     Priority:
     1. MAX_REVISIONS guard — checked first, always
     2. approve → finalize_node
-    3. modify → planner_node
-    4. reject → research_node (if research-level issues) or planner_node
+    3. modify or reject → research_node (if research-level issues) or planner_node
+
+    Reject is NOT terminal: the Orchestrator routes rejection feedback to the
+    Planner Agent exactly like a modify request (or Research Agent first, if
+    the feedback implies the destination/dates/season changed), so the user
+    always lands back on a revised draft awaiting their next decision.
     """
     plan_id = state.get("plan_id", "unknown")
     revision_count = state.get("revision_count", 0)
@@ -72,28 +76,21 @@ def route_after_review(state: TravelPlanState) -> str:
         logger.info(f"route_after_review | plan_id={plan_id} | action=approve → finalize_node")
         return "finalize_node"
 
-    elif action == "modify":
+    elif action in ("modify", "reject"):
         mods = review_decision.get("modifications") or {}
-        instructions = review_decision.get("feedback") or mods.get("instructions", "")
+        instructions = feedback or mods.get("instructions", "")
         if _needs_re_research(instructions):
             logger.info(
-                f"route_after_review | plan_id={plan_id} | action=modify | "
+                f"route_after_review | plan_id={plan_id} | action={action} | "
                 f"instructions trigger re-research → research_node"
             )
             return "research_node"
         else:
             logger.info(
-                f"route_after_review | plan_id={plan_id} | action=modify | "
+                f"route_after_review | plan_id={plan_id} | action={action} | "
                 f"instructions are planner-level → planner_node"
             )
             return "planner_node"
-
-    elif action == "reject":
-        logger.info(
-            f"route_after_review | plan_id={plan_id} | action=reject → rejected_node "
-            f"(terminal: no re-planning on reject)"
-        )
-        return "rejected_node"
 
     # Fallback — should not normally reach here
     logger.error(

@@ -13,15 +13,17 @@ const STATUS_ORDER: Record<string, number> = {
   planning:              2,
   revising:              2,
   awaiting_review:       3,
-  finalized:             4,
+  // 'finalized' must be PAST the last step's own index (3), not equal to it —
+  // otherwise isActive(3) stays true forever and "Finalised" shows a spinning
+  // loader instead of a checkmark even once the workflow is fully done.
+  finalized:             5,
   error:                 -1,
   max_revisions_exceeded:-1,
-  rejected:              -1,
 };
 
 export function WorkflowStepper({ status }: { status: string }) {
   const current = STATUS_ORDER[status] ?? 0;
-  const isError = status === 'error' || status === 'max_revisions_exceeded' || status === 'rejected';
+  const isError = status === 'error' || status === 'max_revisions_exceeded';
   const isActive = (idx: number) => current === idx + 1;
   const isDone   = (idx: number) => current > idx + 1;
 
@@ -93,12 +95,10 @@ export function WorkflowStepper({ status }: { status: string }) {
           background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)',
           borderRadius: '8px', fontSize: '12px', color: '#f87171',
         }}>
-          ⚠️ Workflow {status === 'rejected' ? 'rejected' : 'error'} — {
-            status === 'max_revisions_exceeded' 
-              ? 'maximum revisions reached' 
-              : status === 'rejected'
-                ? 'planning session has been rejected and closed'
-                : 'an unexpected error occurred'
+          ⚠️ Workflow error — {
+            status === 'max_revisions_exceeded'
+              ? 'maximum revisions reached'
+              : 'an unexpected error occurred'
           }.
         </p>
       )}

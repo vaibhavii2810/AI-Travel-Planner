@@ -50,7 +50,6 @@ STATUS_AWAITING_REVIEW = "awaiting_review"
 STATUS_REVISING = "revising"
 STATUS_FINALIZING = "finalizing"
 STATUS_FINALIZED = "finalized"
-STATUS_REJECTED = "rejected"
 STATUS_ERROR = "error"
 STATUS_MAX_REVISIONS = "max_revisions_exceeded"
 

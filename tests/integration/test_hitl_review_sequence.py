@@ -1,10 +1,12 @@
 """
-Integration test: Modify × 2 → Reject via POST /plan/{id}/review.
+Integration test: Modify x2 -> Reject via POST /plan/{id}/review.
 
 Assertions:
   (a) each modify routes to planner, version increments, other days preserved
   (b) state persists correctly across calls (revision_count, draft)
-  (c) reject routes to rejected_node, status == "rejected", no re-planning
+  (c) reject routes to the Orchestrator exactly like modify (Planner Agent, or
+      Research Agent first if the feedback implies a destination/date change)
+      and produces a revised draft awaiting review again — it is NOT terminal
   (d) correct HTTP status codes throughout
 """
 from __future__ import annotations
@@ -18,7 +20,6 @@ import pytest_asyncio
 
 from app.graph.state import (
     STATUS_AWAITING_REVIEW,
-    STATUS_REJECTED,
     STATUS_REVISING,
 )
 from app.models.domain import (
@@ -133,13 +134,15 @@ def _make_research() -> ResearchOutput:
 # ─── Test ─────────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_modify_twice_then_reject(async_client):
+async def test_modify_twice_then_reject_replans(async_client):
     """
     Full HITL sequence:
-      1. Create plan  →  poll until awaiting_review
-      2. Modify #1    →  planner runs, version=2, Day 2 UNCHANGED
-      3. Modify #2    →  planner runs, version=3, Day 1 UNCHANGED
-      4. Reject       →  status=rejected, NO re-planning, graph terminates
+      1. Create plan  ->  poll until awaiting_review
+      2. Modify #1    ->  planner runs, version=2, Day 2 UNCHANGED
+      3. Modify #2    ->  planner runs, version=3, Day 1 UNCHANGED
+      4. Reject       ->  Orchestrator routes to planner (budget feedback is
+                           planner-level, not research-level), version=4,
+                           status back to awaiting_review — NOT terminal
     """
 
     # ── 1. Create Plan ─────────────────────────────────────────────────────────
@@ -158,8 +161,11 @@ async def test_modify_twice_then_reject(async_client):
     draft_v2 = _make_draft(version=2, day1_theme="✏️ Modified Day 1")
     # draft_v3 simulates planner preserving Day 1 (from v2) and only modifying Day 2
     draft_v3 = _make_draft(version=3, day1_theme="✏️ Modified Day 1", day2_theme="✏️ Modified Day 2")
+    # draft_v4 simulates the planner responding to the reject feedback while
+    # preserving the prior modifications to both days
+    draft_v4 = _make_draft(version=4, day1_theme="✏️ Modified Day 1", day2_theme="✏️ Modified Day 2")
 
-    planner_responses = [draft_v1, draft_v2, draft_v3]
+    planner_responses = [draft_v1, draft_v2, draft_v3, draft_v4]
     planner_call_count = 0
 
     async def mock_planner(*args, **kwargs):
@@ -257,42 +263,46 @@ async def test_modify_twice_then_reject(async_client):
         # ── 4. Reject ───────────────────────────────────────────────────────────
         reject_payload = {
             "action": "reject",
-            "feedback": "This plan doesn't suit my budget at all. Please start over.",
+            "feedback": "This plan doesn't suit my budget at all. Please reduce it.",
         }
         resp_r = await async_client.post(f"/api/v1/plan/{plan_id}/review", json=reject_payload)
         # (d) 200 on reject submission
         assert resp_r.status_code == 200, f"Reject failed: {resp_r.text}"
         reject_body = resp_r.json()
         assert reject_body["action_received"] == "reject"
-        # Response immediately reflects rejected status
-        assert reject_body["status"] == STATUS_REJECTED
+        # Response immediately reflects the in-flight revising status — same as modify
+        assert reject_body["status"] == STATUS_REVISING
 
-        # Poll until rejected status is persisted
-        status_after_reject = await _poll_for_status(async_client, plan_id, STATUS_REJECTED)
-        # (c) status is rejected
-        assert status_after_reject["status"] == STATUS_REJECTED
+        # Poll until the planner has produced a new draft and we're awaiting review again
+        status_after_reject = await _poll_for_status(async_client, plan_id, STATUS_AWAITING_REVIEW)
 
-        # (c) no further re-planning — planner was called only 3 times (once per plan + 2 modifies)
-        # reject goes to rejected_node, NOT planner_node
-        assert planner_call_count == 3, (
-            f"Planner should have been called exactly 3 times (initial+modify1+modify2), "
-            f"got {planner_call_count} — reject must NOT trigger re-planning"
+        # (c) reject is NOT terminal — it produced a new revised draft
+        draft_after_reject = status_after_reject.get("draft_itinerary")
+        assert draft_after_reject is not None, "draft_itinerary missing after reject"
+        assert draft_after_reject["version"] == 4, f"Expected version=4, got {draft_after_reject['version']}"
+
+        # (c) budget feedback is planner-level — planner was called a 4th time
+        # (initial + modify1 + modify2 + reject), same Orchestrator logic as modify
+        assert planner_call_count == 4, (
+            f"Planner should have been called exactly 4 times (initial+modify1+modify2+reject), "
+            f"got {planner_call_count} — reject must route to the Planner Agent like modify"
         )
 
-        # (c) revision_count is still 3 — reject does not increment it
-        assert status_after_reject["revision_count"] == 3
+        # (c) revision_count incremented — reject counts as a revision
+        assert status_after_reject["revision_count"] == 4
 
-        # (d) GET after reject returns 200 (plan record still readable)
+        # (d) GET after reject returns 200 and the plan is still awaiting review
         resp_get_final = await async_client.get(f"/api/v1/plan/{plan_id}")
         assert resp_get_final.status_code == 200
-        assert resp_get_final.json()["status"] == STATUS_REJECTED
+        assert resp_get_final.json()["status"] == STATUS_AWAITING_REVIEW
 
 
 @pytest.mark.asyncio
-async def test_reject_with_no_prior_approval_sets_rejected(async_client):
+async def test_reject_with_no_prior_approval_replans(async_client):
     """
-    (c) Edge case: reject on a brand-new plan (no approved version).
-    Status must be 'rejected'. No crash, no infinite loop.
+    Edge case: reject on a brand-new plan (no prior modify yet). Must route to
+    the Planner Agent and come back with a revised draft awaiting review — not
+    terminate the session. No crash, no infinite loop.
     """
     create_payload = {
         "destination": "Paris, France",
@@ -306,9 +316,18 @@ async def test_reject_with_no_prior_approval_sets_rejected(async_client):
     }
 
     draft_v1 = _make_draft(version=1)
+    draft_v2 = _make_draft(version=2, day1_theme="✏️ Revised Day 1")
+    planner_responses = [draft_v1, draft_v2]
+    planner_call_count = 0
+
+    async def mock_planner(*args, **kwargs):
+        nonlocal planner_call_count
+        result = planner_responses[min(planner_call_count, len(planner_responses) - 1)]
+        planner_call_count += 1
+        return result
 
     with patch("app.graph.nodes.research_node.invoke_research_agent") as mock_research, \
-         patch("app.graph.nodes.planner_node.invoke_planner_agent", return_value=draft_v1):
+         patch("app.graph.nodes.planner_node.invoke_planner_agent", side_effect=mock_planner):
 
         mock_research.return_value = _make_research()
 
@@ -320,11 +339,14 @@ async def test_reject_with_no_prior_approval_sets_rejected(async_client):
 
         reject_payload = {
             "action": "reject",
-            "feedback": "I changed my mind entirely.",
+            "feedback": "I don't like these activities.",
         }
         resp_r = await async_client.post(f"/api/v1/plan/{plan_id}/review", json=reject_payload)
         assert resp_r.status_code == 200
-        assert resp_r.json()["status"] == STATUS_REJECTED
+        assert resp_r.json()["status"] == STATUS_REVISING
 
-        status_after = await _poll_for_status(async_client, plan_id, STATUS_REJECTED)
-        assert status_after["status"] == STATUS_REJECTED
+        status_after = await _poll_for_status(async_client, plan_id, STATUS_AWAITING_REVIEW)
+        assert status_after["status"] == STATUS_AWAITING_REVIEW
+        assert status_after["revision_count"] == 2
+        assert planner_call_count == 2
+        assert status_after["draft_itinerary"]["version"] == 2

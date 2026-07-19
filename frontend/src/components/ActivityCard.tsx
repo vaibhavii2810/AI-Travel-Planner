@@ -15,6 +15,7 @@ export function ActivityCard({ activity, currency, slotColor = 'var(--accent)' }
     : `${durationMins}m`;
 
   const hasCost = (activity.estimated_cost_per_person ?? 0) > 0;
+  const hasHourlyRate = (activity.cost_per_hour ?? 0) > 0;
 
   return (
     <div style={{
@@ -58,6 +59,11 @@ export function ActivityCard({ activity, currency, slotColor = 'var(--accent)' }
         {hasCost && (
           <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 700, color: 'var(--accent)' }}>
             <DollarSign size={11} /> {currency} {activity.estimated_cost_per_person?.toFixed(0)}/person
+          </span>
+        )}
+        {hasHourlyRate && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
+            ({currency} {activity.cost_per_hour?.toFixed(0)}/hr)
           </span>
         )}
         {activity.booking_required && (

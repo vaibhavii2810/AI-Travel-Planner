@@ -109,6 +109,25 @@ class TestActivityCoercion:
         )
         assert not hasattr(act, "llm_confidence")
 
+    def test_cost_per_hour_computed_from_cost_and_duration(self):
+        act = Activity(name="Museum Tour", estimated_cost_per_person=45, duration_minutes=90)
+        assert act.cost_per_hour == 30.0
+        assert act.model_dump()["cost_per_hour"] == 30.0
+
+    def test_cost_per_hour_zero_when_duration_zero(self):
+        act = Activity(name="Free Walk", estimated_cost_per_person=0, duration_minutes=0)
+        assert act.cost_per_hour == 0.0
+
+    def test_cost_per_hour_recomputes_when_fields_change(self):
+        """The whole point: no separate recalculation step is needed after a Modify."""
+        act = Activity(name="Spa Day", estimated_cost_per_person=100, duration_minutes=60)
+        assert act.cost_per_hour == 100.0
+        act.estimated_cost_per_person = 50
+        act.duration_minutes = 30
+        assert act.cost_per_hour == 100.0
+        act.duration_minutes = 120
+        assert act.cost_per_hour == 25.0
+
 
 class TestWeatherSummaryCoercion:
 

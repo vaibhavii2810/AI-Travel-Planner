@@ -63,42 +63,78 @@ async def test_hitl_genuinely_pauses(compiled_graph, sample_travel_request):
 
 
 @pytest.mark.asyncio
-async def test_reject_terminates_graph(compiled_graph, sample_travel_request):
-    """Tests that reject routes to rejected_node and terminates cleanly."""
-    from app.graph.state import STATUS_REJECTED
-
-    plan_id = "test-plan-reject-terminal"
+async def test_reject_routes_to_replanning(compiled_graph, sample_travel_request):
+    """Reject is NOT terminal — it routes to the Planner Agent (Orchestrator
+    logic) exactly like modify, and the graph pauses again for another review."""
+    plan_id = "test-plan-reject-replans"
     config = {"configurable": {"thread_id": plan_id}}
     state = initial_state(plan_id, sample_travel_request)
 
     from unittest.mock import patch
     with patch("app.graph.nodes.research_node.invoke_research_agent") as mock_research, \
          patch("app.graph.nodes.planner_node.invoke_planner_agent") as mock_planner:
-        
+
         mock_research.return_value = {"dummy": "research"}
         mock_planner.return_value = {"dummy": "itinerary", "version": 1}
 
         # Run to first pause
         await compiled_graph.ainvoke(state, config=config)
-        
+
         reject_decision = {
-            "action": "reject", 
-            "feedback": "I don't want this plan at all.",
+            "action": "reject",
+            "feedback": "The budget is too high, please reduce it.",
             "modifications": None
         }
-        
-        # Resume — should go to rejected_node and terminate
+
+        # Resume — planner-level feedback routes straight to planner_node
         resumed_result = await compiled_graph.ainvoke(Command(resume=reject_decision), config=config)
-        
-        # Status must be rejected (terminal)
-        assert resumed_result.get("status") == STATUS_REJECTED
-        
-        # Graph must have finished cleanly
+
+        # Reject produces a new revised draft awaiting review again — not terminal
+        assert resumed_result.get("status") == STATUS_AWAITING_REVIEW
+        assert resumed_result.get("revision_count") == 2
+
+        # Graph paused again at hitl_review_node for the next decision
         snapshot = await compiled_graph.aget_state(config)
-        assert snapshot.next == ()
-        
-        # Planner was called only once (initial plan) — reject does NOT re-plan
-        assert mock_planner.call_count == 1
+        assert snapshot.next == ("hitl_review_node",)
+
+        # Planner WAS called again to produce the revised draft
+        assert mock_planner.call_count == 2
+        # Budget feedback doesn't trigger re-research
+        assert mock_research.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_reject_with_research_trigger_reruns_research(compiled_graph, sample_travel_request):
+    """Reject feedback implying a destination/date/season change routes through
+    the Research Agent first, then the Planner Agent — same Orchestrator logic
+    modify already uses."""
+    plan_id = "test-plan-reject-reresearch"
+    config = {"configurable": {"thread_id": plan_id}}
+    state = initial_state(plan_id, sample_travel_request)
+
+    from unittest.mock import patch
+    with patch("app.graph.nodes.research_node.invoke_research_agent") as mock_research, \
+         patch("app.graph.nodes.planner_node.invoke_planner_agent") as mock_planner:
+
+        mock_research.return_value = {"dummy": "research"}
+        mock_planner.return_value = {"dummy": "itinerary", "version": 1}
+
+        await compiled_graph.ainvoke(state, config=config)
+
+        reject_decision = {
+            "action": "reject",
+            "feedback": "Please change the destination, the weather there is bad this season.",
+            "modifications": None,
+        }
+        resumed_result = await compiled_graph.ainvoke(Command(resume=reject_decision), config=config)
+
+        assert resumed_result.get("status") == STATUS_AWAITING_REVIEW
+        snapshot = await compiled_graph.aget_state(config)
+        assert snapshot.next == ("hitl_review_node",)
+
+        # Research Agent reran before the Planner Agent
+        assert mock_research.call_count == 2
+        assert mock_planner.call_count == 2
 
 @pytest.mark.asyncio
 async def test_modify_routing_loop(compiled_graph, sample_travel_request):

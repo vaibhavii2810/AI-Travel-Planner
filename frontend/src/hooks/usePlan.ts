@@ -63,12 +63,21 @@ export function usePlan(planId: string | undefined): UsePlanReturn {
         }
       }
 
-      // Stop polling on terminal statuses
-      if (['finalized', 'error', 'max_revisions_exceeded', 'rejected'].includes(data.status)) {
+      // Stop polling on terminal statuses. 'rejected' is intentionally absent —
+      // reject routes through the Orchestrator like modify and comes back as
+      // 'awaiting_review', it never terminates the session.
+      if (['finalized', 'error', 'max_revisions_exceeded'].includes(data.status)) {
         shouldPollRef.current = false;
       }
     } catch (err) {
-      setError(err as ApiError);
+      const apiErr = err as ApiError;
+      // Plan no longer exists (e.g. dev backend restarted and lost its
+      // in-memory store) — the stale id in localStorage would otherwise
+      // redirect every future visit to "/" straight into this same error.
+      if (apiErr.status === 404) {
+        localStorage.removeItem('activePlanId');
+      }
+      setError(apiErr);
     }
   }, [planId]);
 
