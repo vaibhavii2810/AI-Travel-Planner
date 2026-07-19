@@ -403,12 +403,20 @@ async def lifespan(app: FastAPI):
                 # Mark first day as revised and prepend a custom activity to morning slot
                 daily_plans[0].theme = "✨ Revised — " + daily_plans[0].theme
                 daily_plans[0].practical_notes = f"Updated per your feedback: \"{feedback_text[:120]}\""
+                # Try to extract a realistic name from the feedback text
+                activity_name = "Custom Activity"
+                lower_text = feedback_text.lower()
+                if "with " in lower_text:
+                    activity_name = feedback_text[lower_text.rfind("with ") + 5:].strip().title()
+                elif " to " in lower_text:
+                    activity_name = feedback_text[lower_text.rfind(" to ") + 4:].strip().title()
+
                 daily_plans[0].morning.insert(0, Activity(
-                    name="Your Custom Request ✓",
-                    description=f"Adjusted based on your feedback: {feedback_text[:200]}",
+                    name=activity_name,
+                    description=f"Enjoy {activity_name.lower()} as requested. This is a custom activity tailored to your preference: {feedback_text[:100]}.",
                     location=req.destination,
-                    duration_minutes=90,
-                    estimated_cost_per_person=0.0,
+                    duration_minutes=120,
+                    estimated_cost_per_person=25.0,
                     booking_required=False,
                     tips="This activity was added in response to your revision request.",
                 ))
