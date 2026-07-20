@@ -86,4 +86,5 @@ Thumbs.db
 *.db-shm
 *.db-wal
 *.sqlite
+mailmap.txt
 
